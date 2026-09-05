@@ -1,5 +1,5 @@
 {
-  "name": "Voice Satellite",
+  "name": "Voice Satellite (External Support)",
   "homeassistant": "2025.6.1",
   "render_readme": true,
   "zip_release": true,
