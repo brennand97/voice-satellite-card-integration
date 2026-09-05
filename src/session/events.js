@@ -738,6 +738,7 @@ export function handlePipelineMessage(session, message) {
       break;
     case 'stt-end': session.pipeline.handleSttEnd(eventData); break;
     case 'intent-start':
+      if (eventData.external?.response_id) session._externalResponseId = eventData.external.response_id;
       setState(session, State.INTENT);
       session.chat.showThinking();
       break;
@@ -747,15 +748,31 @@ export function handlePipelineMessage(session, message) {
     case 'intent-end': session.pipeline.handleIntentEnd(eventData); break;
     case 'tts-start': setState(session, State.TTS); break;
     case 'tts-end': session.pipeline.handleTtsEnd(eventData); break;
+    // External audio URLs are short-lived provider capabilities, not HA TTS
+    // output. Do not route them through handleTtsEnd(): that handler restarts
+    // the normal pipeline before streaming playback has completed.
+    case 'external-audio-start':
+      if (!eventData.external?.response_id || eventData.external.response_id !== session._externalResponseId) break;
+      setState(session, State.TTS);
+      session.tts.play(eventData.url, false);
+      break;
     case 'tts-audio-duration': session.tts.setAudioDuration(eventData.duration); break;
     // External Transport reports provider-side barge-in separately from HA
     // pipeline events. Stop native/browser playback immediately; the next
     // transcript or response event drives the usual state machine.
     case 'external-interrupted':
+      if (!eventData.external?.response_id || eventData.external.response_id !== session._externalResponseId) break;
+      session._externalResponseId = null;
       session.tts.stop();
       setState(session, State.STT);
       break;
-    case 'run-end': session.pipeline.handleRunEnd(); break;
+    case 'run-end':
+      // A late finish from a revoked external response must not clean up a
+      // newer response's UI or playback.
+      if (eventData.external?.response_id && eventData.external.response_id !== session._externalResponseId) break;
+      if (eventData.external?.response_id) session._externalResponseId = null;
+      session.pipeline.handleRunEnd();
+      break;
     case 'error': session.pipeline.handleError(eventData); break;
     case 'displaced':
       session.logger.error('pipeline', 'Pipeline displaced - another browser is using this satellite entity');

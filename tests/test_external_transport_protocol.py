@@ -60,6 +60,15 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(protocol.ProtocolError):
             protocol.validate_ready({"type": "session.ready", "session_id": "other"}, "id")
 
+    def test_validates_persistent_event_correlation(self) -> None:
+        event = protocol.validate_event(
+            {"type": "assistant.audio", "session_id": "s1", "turn_id": "t1", "response_id": "r1", "url": "https://voice.example/audio", "content_type": "audio/wav"},
+            "s1",
+        )
+        self.assertEqual(protocol.normalize_event(event)["type"], "external-audio-start")
+        with self.assertRaises(protocol.ProtocolError):
+            protocol.validate_event({"type": "assistant.interrupted", "session_id": "s1", "turn_id": "t1"}, "s1")
+
     def test_normalizes_transcript_and_response(self) -> None:
         stt = protocol.normalize_event({"type": "user.transcript.final", "text": "lights off"})
         self.assertEqual(stt, {"type": "stt-end", "data": {"stt_output": {"text": "lights off"}}})
@@ -148,9 +157,9 @@ class FakeHttpSession:
 class ClientTests(unittest.IsolatedAsyncioTestCase):
     async def test_connect_forwards_audio_events_and_closes(self) -> None:
         websocket = FakeWebSocket([
-            FakeMessage({"type": "session.ready", "session_id": "s1"}),
-            FakeMessage({"type": "assistant.response_started"}),
-            FakeMessage({"type": "session.finished"}),
+            FakeMessage({"type": "session.ready", "session_id": "s1", "capabilities": {"transcription": True, "text_input": True, "streaming_audio_url": True, "interruptions": True, "conversation_continuation": True}}),
+            FakeMessage({"type": "assistant.response_started", "session_id": "s1", "turn_id": "t1", "response_id": "r1"}),
+            FakeMessage({"type": "session.finished", "session_id": "s1"}),
         ])
         http = FakeHttpSession(websocket)
         client = client_module.ExternalTransportClient(
@@ -162,18 +171,32 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         )
 
         await client.connect()
-        await client.write_audio(b"\x00\x00")
-        await client.end_input()
+        await client.start_turn("t1", "audio")
+        await client.write_audio("t1", b"\x00\x00")
+        await client.end_turn("t1")
         events = [event async for event in client.events()]
         await client.close()
 
         self.assertEqual(http.headers, {"Authorization": "Bearer secret"})
         self.assertEqual(websocket.sent_json[0]["type"], "session.start")
         self.assertEqual(websocket.sent_bytes, [b"\x00\x00"])
-        self.assertEqual(websocket.sent_json[-1], {"type": "input.end"})
+        self.assertEqual(websocket.sent_json[-1], {"type": "turn.end", "turn_id": "t1"})
         self.assertEqual([event["type"] for event in events], ["assistant.response_started", "session.finished"])
         self.assertTrue(websocket.closed)
         self.assertEqual(client.state.current, session.SessionState.FINISHED)
+
+    async def test_text_turn_and_response_cancel_keep_session_open(self) -> None:
+        websocket = FakeWebSocket([
+            FakeMessage({"type": "session.ready", "session_id": "s1", "capabilities": {"transcription": True, "text_input": True, "streaming_audio_url": True, "interruptions": True, "conversation_continuation": True}}),
+        ])
+        client = client_module.ExternalTransportClient(FakeHttpSession(websocket), "wss://voice.example/transport/v1", "secret", protocol.SessionStart("s1", "assist_satellite.kitchen", "Kitchen"), 1)
+        await client.connect()
+        await client.start_turn("text-1", "text")
+        await client.write_text("text-1", "Turn on lights")
+        await client.end_turn("text-1")
+        await client.cancel_response("r1", "playback_stopped")
+        self.assertEqual([message["type"] for message in websocket.sent_json[1:]], ["turn.start", "input.text", "turn.end", "response.cancel"])
+        self.assertFalse(websocket.closed)
 
 
 if __name__ == "__main__":

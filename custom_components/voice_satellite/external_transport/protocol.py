@@ -1,13 +1,14 @@
 """Provider-neutral External Transport Protocol v1 helpers.
 
-This module intentionally has no Home Assistant or provider dependency so its
-message validation and event normalization can be tested in isolation.
+No Home Assistant/provider imports belong here: this is the strict wire-format
+boundary shared by the low-level client and the persistent runtime.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Final
+from urllib.parse import urlparse
 
 PROTOCOL_VERSION: Final = 1
 PCM16LE: Final = "pcm_s16le"
@@ -21,8 +22,6 @@ class ProtocolError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SessionStart:
-    """Validated metadata sent before binary audio frames."""
-
     session_id: str
     satellite_entity_id: str
     satellite_name: str
@@ -31,27 +30,24 @@ class SessionStart:
 
     def as_message(self) -> dict[str, Any]:
         return {
-            "type": "session.start",
-            "protocol_version": PROTOCOL_VERSION,
+            "type": "session.start", "protocol_version": PROTOCOL_VERSION,
             "session_id": self.session_id,
-            "satellite": {
-                "entity_id": self.satellite_entity_id,
-                "name": self.satellite_name,
-            },
-            "audio": {
-                "encoding": PCM16LE,
-                "sample_rate": SAMPLE_RATE,
-                "channels": CHANNELS,
-            },
-            "conversation": {
-                "id": self.conversation_id,
-                "wake_word": self.wake_word,
-            },
+            "satellite": {"entity_id": self.satellite_entity_id, "name": self.satellite_name},
+            "audio": {"encoding": PCM16LE, "sample_rate": SAMPLE_RATE, "channels": CHANNELS},
+            "conversation": {"id": self.conversation_id, "wake_word": self.wake_word},
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ServerCapabilities:
+    transcription: bool
+    text_input: bool
+    streaming_audio_url: bool
+    interruptions: bool
+    conversation_continuation: bool
+
+
 def validate_server_message(message: object) -> dict[str, Any]:
-    """Validate the common shape of a server JSON event."""
     if not isinstance(message, dict):
         raise ProtocolError("external transport message must be an object")
     event_type = message.get("type")
@@ -60,76 +56,87 @@ def validate_server_message(message: object) -> dict[str, Any]:
     return message
 
 
-def validate_ready(message: object, session_id: str) -> dict[str, Any]:
-    """Validate the required readiness response for a session."""
+def validate_ready(message: object, session_id: str) -> ServerCapabilities:
     message = validate_server_message(message)
     if message["type"] != "session.ready":
         raise ProtocolError("expected session.ready")
     if message.get("session_id") != session_id:
         raise ProtocolError("session.ready has a mismatched session_id")
-    return message
+    raw = message.get("capabilities")
+    if not isinstance(raw, dict):
+        raise ProtocolError("session.ready requires capabilities")
+    required = (
+        "transcription", "text_input", "streaming_audio_url",
+        "interruptions", "conversation_continuation",
+    )
+    if any(not isinstance(raw.get(key), bool) for key in required):
+        raise ProtocolError("session.ready has invalid capabilities")
+    return ServerCapabilities(**{key: raw[key] for key in required})
 
 
-def normalize_event(message: object) -> dict[str, Any] | None:
-    """Map protocol events onto existing Voice Satellite pipeline events.
-
-    Returning ``None`` means the event is informational and does not need to
-    reach the existing card pipeline state machine.
-    """
+def validate_event(message: object, session_id: str) -> dict[str, Any]:
+    """Validate event correlation before it can affect a card binding."""
     event = validate_server_message(message)
-    event_type = event["type"]
+    if event["type"] != "error" and event.get("session_id") != session_id:
+        raise ProtocolError("external transport event has a mismatched session_id")
+    correlated = {
+        "user.speech_started", "user.transcript.partial", "user.transcript.final",
+        "assistant.response_started", "assistant.text.delta", "assistant.text.final",
+        "assistant.audio", "assistant.interrupted", "assistant.response_finished",
+    }
+    if event["type"] in correlated:
+        _required(event, "turn_id")
+    if event["type"].startswith("assistant."):
+        _required(event, "response_id")
+    if event["type"].startswith("user.transcript"):
+        _required(event, "text")
+        if event.get("source") not in {"provider_audio", "client_text"}:
+            raise ProtocolError("transcript has an invalid source")
+    if event["type"] == "assistant.audio":
+        url = _required(event, "url")
+        if urlparse(url).scheme not in {"https", "http"}:
+            raise ProtocolError("assistant.audio URL must be HTTP(S)")
+        if event.get("content_type") != "audio/wav":
+            raise ProtocolError("assistant.audio must be audio/wav")
+    return event
 
+
+def normalize_event(event: dict[str, Any]) -> dict[str, Any] | None:
+    """Map validated protocol events onto existing card pipeline events."""
+    event_type = event["type"]
+    meta = {key: event[key] for key in ("turn_id", "response_id") if key in event}
+    if event_type == "user.speech_started":
+        return {"type": "stt-vad-start", "data": {"external": meta}}
     if event_type == "user.transcript.partial":
-        # The existing UI consumes final STT events. Partial text remains an
-        # optional protocol capability until a dedicated card event exists.
         return None
     if event_type == "user.transcript.final":
-        return {"type": "stt-end", "data": {"stt_output": {"text": _text(event)}}}
+        source = event.get("source")
+        external = {**meta, **({"source": source} if isinstance(source, str) else {})}
+        data: dict[str, Any] = {"stt_output": {"text": _required(event, "text")}}
+        if external:
+            data["external"] = external
+        return {"type": "stt-end", "data": data}
     if event_type == "assistant.response_started":
-        return {"type": "intent-start", "data": {}}
+        return {"type": "intent-start", "data": {"external": meta}}
     if event_type == "assistant.text.delta":
-        return {
-            "type": "intent-progress",
-            "data": {"chat_log_delta": {"content": _text(event)}},
-        }
+        return {"type": "intent-progress", "data": {"chat_log_delta": {"content": _required(event, "text")}, "external": meta}}
     if event_type == "assistant.text.final":
-        return {
-            "type": "intent-end",
-            "data": {
-                "intent_output": {
-                    "response": {
-                        "response_type": "action_done",
-                        "speech": {"plain": {"speech": _text(event)}},
-                    },
-                    "conversation_id": event.get("conversation_id"),
-                    "continue_conversation": bool(event.get("continue_conversation")),
-                }
-            },
-        }
-    if event_type == "assistant.interrupted":
-        return {"type": "external-interrupted", "data": {}}
+        return {"type": "intent-end", "data": {"intent_output": {"response": {"response_type": "action_done", "speech": {"plain": {"speech": _required(event, "text")}}}}, "external": meta}}
     if event_type == "assistant.audio":
-        url = event.get("url")
-        if not isinstance(url, str) or not url:
-            raise ProtocolError("assistant.audio requires a URL")
-        return {"type": "tts-end", "data": {"tts_output": {"url": url}}}
+        return {"type": "external-audio-start", "data": {"url": _required(event, "url"), "content_type": _required(event, "content_type"), "external": meta}}
+    if event_type == "assistant.interrupted":
+        return {"type": "external-interrupted", "data": {"external": meta} if meta else {}}
+    if event_type == "assistant.response_finished":
+        return {"type": "run-end", "data": {"external": meta}}
     if event_type == "session.finished":
         return {"type": "run-end", "data": {}}
     if event_type == "error":
-        return {
-            "type": "error",
-            "data": {
-                "code": event.get("code", "external_transport_error"),
-                "message": event.get("message", "External transport failed"),
-            },
-        }
-    # Speech lifecycle, audio completion, and interruption are handled by the
-    # external session/client lifecycle or future card capabilities.
+        return {"type": "error", "data": {"code": event.get("code", "external_transport_error"), "message": event.get("message", "External transport failed")}}
     return None
 
 
-def _text(event: dict[str, Any]) -> str:
-    text = event.get("text")
-    if not isinstance(text, str):
-        raise ProtocolError(f"{event['type']} requires text")
-    return text
+def _required(message: dict[str, Any], key: str) -> str:
+    value = message.get(key)
+    if not isinstance(value, str) or not value:
+        raise ProtocolError(f"{message['type']} requires {key}")
+    return value

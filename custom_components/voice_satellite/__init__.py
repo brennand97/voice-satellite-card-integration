@@ -822,31 +822,27 @@ async def ws_run_pipeline(
                 msg["id"],
                 {"type": "init", "handler_id": None},
             )
-            # Do not silently route text-only requests through Assist when a
-            # satellite explicitly selected External Transport. Protocol v1
-            # is audio-first; a future protocol revision can add input.text.
             if entity.uses_external_transport:
-                entity._send_pipeline_failure(
-                    connection,
-                    msg["id"],
-                    "external_transport_text_unsupported",
-                    "External Transport does not support text input yet",
+                task = hass.async_create_background_task(
+                    entity.async_run_external_transport_text(
+                        intent_input, connection, msg["id"], conversation_id=conversation_id,
+                    ),
+                    name=f"voice_satellite.{entity.satellite_name}_external_transport_text",
                 )
-                connection.subscriptions[msg["id"]] = lambda: None
-                return
-            task = hass.async_create_background_task(
-                entity.async_run_pipeline_text(
-                    connection,
-                    msg["id"],
-                    start_stage=start_stage,
-                    end_stage=end_stage,
-                    intent_input=intent_input,
-                    pipeline_id_override=pipeline_id_override,
-                    conversation_id=conversation_id,
-                    extra_system_prompt=extra_system_prompt,
-                ),
-                name=f"voice_satellite.{entity.satellite_name}_pipeline_text",
-            )
+            else:
+                task = hass.async_create_background_task(
+                    entity.async_run_pipeline_text(
+                        connection,
+                        msg["id"],
+                        start_stage=start_stage,
+                        end_stage=end_stage,
+                        intent_input=intent_input,
+                        pipeline_id_override=pipeline_id_override,
+                        conversation_id=conversation_id,
+                        extra_system_prompt=extra_system_prompt,
+                    ),
+                    name=f"voice_satellite.{entity.satellite_name}_pipeline_text",
+                )
             entity.pipeline_task = task
 
             def unsub_text() -> None:
