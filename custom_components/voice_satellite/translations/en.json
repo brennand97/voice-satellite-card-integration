@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add Voice Satellite",
+        "title": "Add Voice Satellite (External Support)",
         "description": "Create a virtual Assist satellite for a browser tablet running Voice Satellite.",
         "data": {
           "name": "Satellite name"

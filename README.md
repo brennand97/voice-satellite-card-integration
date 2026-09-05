@@ -120,7 +120,7 @@ If prompted, add `brennand97/voice-satellite-card-integration` as an **Integrati
 2. Search for **Voice Satellite**
 3. Enter a name for the device (e.g., "Kitchen Tablet")
 4. Repeat for each browser/tablet that will act as a satellite
-5. On each browser/tablet, open the **Voice Satellite** sidebar panel
+5. On each browser/tablet, open the **Voice Satellite (External Support)** sidebar panel
 6. Select the satellite entity you created for this device
 7. Configure wake word, audio, and appearance settings as needed
 8. The engine starts automatically once an entity is assigned - if the browser blocks auto-start due to a missing user gesture, a floating microphone button will appear; tap it to start

@@ -1,6 +1,6 @@
 {
   "domain": "voice_satellite",
-  "name": "Voice Satellite",
+  "name": "Voice Satellite (External Support)",
   "codeowners": [
     "@jxlarrea"
   ],
@@ -19,5 +19,5 @@
   "requirements": [
     "mutagen>=1.47.0"
   ],
-  "version": "2026.9.5-fork.1"
+  "version": "2026.9.5-fork.2"
 }

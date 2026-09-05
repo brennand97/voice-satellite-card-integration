@@ -146,7 +146,7 @@ async def async_register_sidebar_panel(hass: HomeAssistant) -> None:
     async_register_built_in_panel(
         hass,
         component_name="custom",
-        sidebar_title="Voice Satellite",
+        sidebar_title="Voice Satellite (External Support)",
         sidebar_icon="mdi:microphone-message",
         frontend_url_path="voice-satellite",
         require_admin=False,
