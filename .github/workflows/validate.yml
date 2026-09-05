@@ -1,0 +1,66 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# This workflow intentionally has no write permission and no secrets. It is
+# the check that branch protection should require before an upstream-sync PR
+# can be auto-merged.
+permissions:
+  contents: read
+
+jobs:
+  python-modules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - name: Test dependency-free External Transport modules
+        run: python -m unittest discover -s tests -p 'test_external_transport_*.py' -v
+      - name: Compile changed Python modules
+        run: >-
+          python -m py_compile
+          custom_components/voice_satellite/external_transport/*.py
+          custom_components/voice_satellite/config_flow.py
+          custom_components/voice_satellite/select.py
+          custom_components/voice_satellite/assist_satellite.py
+          custom_components/voice_satellite/__init__.py
+      - name: Validate translations JSON
+        run: |
+          python -m json.tool custom_components/voice_satellite/strings.json >/dev/null
+          python -m json.tool custom_components/voice_satellite/translations/en.json >/dev/null
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@1e60f620b9541d0bcd16d1d7d1d2f65da2c0391b # v4.0.4
+        with:
+          node-version: "24"
+      # Upstream currently does not publish a package-lock.json; avoid
+      # generating one in CI while still using npm's lockfile-free install.
+      - run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+      - run: npm run build
+
+  sensitive-paths:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Require manual review marker for sensitive upstream paths
+        if: github.event_name == 'pull_request' && github.head_ref == 'automation/upstream-sync'
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
+          if grep -Eq '^(\.github/|scripts/|package(-lock)?\.json$|custom_components/voice_satellite/manifest\.json$)' <<<"$changed"; then
+            echo "Sensitive upstream paths changed; do not allow this PR to auto-merge." >&2
+            exit 1
+          fi

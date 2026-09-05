@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import uuid
 from typing import Any
 
 from homeassistant.components import intent
@@ -46,7 +47,18 @@ except ImportError:
     HAS_HASSIL = False
 
 
-from .const import DOMAIN, EVENT_TIMER, INTEGRATION_VERSION
+from .const import (
+    CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT,
+    CONF_EXTERNAL_TRANSPORT_TOKEN,
+    CONF_EXTERNAL_TRANSPORT_URL,
+    CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
+    CONVERSATION_TRANSPORT_EXTERNAL,
+    DOMAIN,
+    EVENT_TIMER,
+    INTEGRATION_VERSION,
+)
+from .external_transport.client import ExternalTransportClient
+from .external_transport.protocol import ProtocolError, SessionStart, normalize_event
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -364,6 +376,13 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
     def question_match_result(self) -> dict | None:
         """Return the ask_question match result."""
         return self._question_match_result
+
+    @property
+    def uses_external_transport(self) -> bool:
+        """Whether this satellite selected the generic External Transport."""
+        registry = er.async_get(self.hass)
+        state = self._get_child_state(registry, "select", "_conversation_transport")
+        return state is not None and state.state == CONVERSATION_TRANSPORT_EXTERNAL
 
     @property
     def pipeline_audio_queue(self) -> asyncio.Queue | None:
@@ -1383,6 +1402,90 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
                 self._pipeline_msg_id = None
                 self._pipeline_audio_queue = None
                 self._active_wake_word_slot = 1
+
+    async def async_run_external_transport(
+        self,
+        audio_queue: asyncio.Queue[bytes],
+        connection: Any,
+        msg_id: int,
+        conversation_id: str | None = None,
+        wake_word_phrase: str | None = None,
+    ) -> None:
+        """Relay native binary PCM to a provider-neutral external service."""
+        options = self._entry.options
+        url = options.get(CONF_EXTERNAL_TRANSPORT_URL, "")
+        token = options.get(CONF_EXTERNAL_TRANSPORT_TOKEN, "")
+        if not isinstance(url, str) or not url or not isinstance(token, str) or not token:
+            self._send_pipeline_failure(
+                connection, msg_id, "external_transport_not_configured",
+                "External Transport is selected but is not configured",
+            )
+            return
+
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+        self._pipeline_gen += 1
+        my_gen = self._pipeline_gen
+        self._pipeline_connection = connection
+        self._pipeline_msg_id = msg_id
+        self._pipeline_audio_queue = audio_queue
+        self._pipeline_run_started = True
+        connection.send_event(msg_id, {"type": "run-start", "data": {}})
+
+        ready_timeout = options.get(CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5)
+        try:
+            ready_timeout = float(ready_timeout)
+        except (TypeError, ValueError):
+            ready_timeout = 5
+        start = SessionStart(
+            session_id=str(uuid.uuid4()),
+            satellite_entity_id=self.entity_id,
+            satellite_name=self._satellite_name,
+            conversation_id=conversation_id,
+            wake_word=wake_word_phrase,
+        )
+        verify_tls = options.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True)
+        client = ExternalTransportClient(
+            async_get_clientsession(self.hass, verify_ssl=bool(verify_tls)),
+            url,
+            token,
+            start,
+            ready_timeout,
+        )
+
+        async def forward_audio() -> None:
+            while True:
+                chunk = await audio_queue.get()
+                if not chunk:
+                    await client.end_input()
+                    return
+                await client.write_audio(chunk)
+
+        try:
+            await client.connect()
+            audio_task = asyncio.create_task(forward_audio())
+            try:
+                async for event in client.events():
+                    pipeline_event = normalize_event(event)
+                    if pipeline_event is not None:
+                        connection.send_event(msg_id, pipeline_event)
+                    if event["type"] in {"session.finished", "error"}:
+                        break
+            finally:
+                audio_task.cancel()
+                await asyncio.gather(audio_task, return_exceptions=True)
+        except Exception as err:  # noqa: BLE001 - external provider boundary
+            _LOGGER.warning("External transport failed for '%s': %s", self._satellite_name, err)
+            self._send_pipeline_failure(
+                connection, msg_id, "external_transport_error", "External transport is unavailable",
+            )
+        finally:
+            await client.close()
+            if self._pipeline_gen == my_gen:
+                self._pipeline_connection = None
+                self._pipeline_msg_id = None
+                self._pipeline_audio_queue = None
+                self._pipeline_run_started = False
 
     @callback
     def on_pipeline_event(self, event) -> None:

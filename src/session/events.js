@@ -748,6 +748,13 @@ export function handlePipelineMessage(session, message) {
     case 'tts-start': setState(session, State.TTS); break;
     case 'tts-end': session.pipeline.handleTtsEnd(eventData); break;
     case 'tts-audio-duration': session.tts.setAudioDuration(eventData.duration); break;
+    // External Transport reports provider-side barge-in separately from HA
+    // pipeline events. Stop native/browser playback immediately; the next
+    // transcript or response event drives the usual state machine.
+    case 'external-interrupted':
+      session.tts.stop();
+      setState(session, State.STT);
+      break;
     case 'run-end': session.pipeline.handleRunEnd(); break;
     case 'error': session.pipeline.handleError(eventData); break;
     case 'displaced':

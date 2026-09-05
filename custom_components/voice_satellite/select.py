@@ -37,7 +37,11 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN
+from .const import (
+    CONVERSATION_TRANSPORT_EXTERNAL,
+    CONVERSATION_TRANSPORT_HOME_ASSISTANT,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,6 +83,7 @@ async def async_setup_entry(
         tts_output_select,
         VoiceSatelliteTTSOutputModeSelect(hass, entry, tts_output_select),
         VoiceSatelliteSessionDurationSelect(hass, entry),
+        VoiceSatelliteConversationTransportSelect(entry),
         detection_select,
         VoiceSatelliteWakeWordModelSelect(hass, entry, mww_models, oww_models, vww_models, detection_select),
         wake_word_2_select,
@@ -93,6 +98,46 @@ async def async_setup_entry(
         if reg_entry.domain == "select" and reg_entry.unique_id not in expected_uids:
             _LOGGER.info("Removing stale entity: %s", reg_entry.entity_id)
             registry.async_remove(reg_entry.entity_id)
+
+
+class VoiceSatelliteConversationTransportSelect(SelectEntity, RestoreEntity):
+    """Choose between native Home Assistant Assist and External Transport.
+
+    Endpoint credentials remain in the config entry options; this entity only
+    stores the provider-neutral transport choice.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_has_entity_name = True
+    _attr_translation_key = "conversation_transport"
+    _attr_icon = "mdi:transit-connection-variant"
+    _attr_options = [CONVERSATION_TRANSPORT_HOME_ASSISTANT, CONVERSATION_TRANSPORT_EXTERNAL]
+
+    def __init__(self, entry: ConfigEntry) -> None:
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_conversation_transport"
+        self._selected_option = CONVERSATION_TRANSPORT_HOME_ASSISTANT
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        return {"identifiers": {(DOMAIN, self._entry.entry_id)}}
+
+    @property
+    def current_option(self) -> str:
+        return self._selected_option
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state in self.options:
+            self._selected_option = last_state.state
+        self.async_write_ha_state()
+
+    async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            return
+        self._selected_option = option
+        self.async_write_ha_state()
 
 
 class VoiceSatellitePipelineSelect(AssistPipelineSelect):

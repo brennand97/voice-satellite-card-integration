@@ -1,0 +1,180 @@
+"""Unit tests for isolated External Transport modules.
+
+The client test stubs aiohttp because Home Assistant supplies it at runtime;
+these tests deliberately do not import Home Assistant or provider libraries.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import sys
+import types
+import unittest
+
+ROOT = Path(__file__).parents[1]
+PACKAGE = ROOT / "custom_components" / "voice_satellite" / "external_transport"
+PACKAGE_NAME = "external_transport_test"
+
+package = types.ModuleType(PACKAGE_NAME)
+package.__path__ = [str(PACKAGE)]
+sys.modules[PACKAGE_NAME] = package
+
+# Minimal surface consumed by client.py. The real aiohttp package is supplied
+# by Home Assistant; this keeps the unit test focused on our client behavior.
+aiohttp = types.ModuleType("aiohttp")
+aiohttp.ClientSession = object
+
+
+class FakeWSMsgType:
+    TEXT = "text"
+
+
+aiohttp.WSMsgType = FakeWSMsgType
+sys.modules["aiohttp"] = aiohttp
+
+
+def load_module(name: str):
+    qualified_name = f"{PACKAGE_NAME}.{name}"
+    spec = importlib.util.spec_from_file_location(qualified_name, PACKAGE / f"{name}.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[qualified_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+protocol = load_module("protocol")
+session = load_module("session")
+client_module = load_module("client")
+
+
+class ProtocolTests(unittest.TestCase):
+    def test_start_message_has_fixed_native_audio_format(self) -> None:
+        message = protocol.SessionStart("id", "assist_satellite.kitchen", "Kitchen", "conversation", "Okay Nabu").as_message()
+        self.assertEqual(message["protocol_version"], 1)
+        self.assertEqual(message["audio"], {"encoding": "pcm_s16le", "sample_rate": 16000, "channels": 1})
+        self.assertEqual(message["conversation"]["id"], "conversation")
+
+    def test_ready_requires_matching_session(self) -> None:
+        with self.assertRaises(protocol.ProtocolError):
+            protocol.validate_ready({"type": "session.ready", "session_id": "other"}, "id")
+
+    def test_normalizes_transcript_and_response(self) -> None:
+        stt = protocol.normalize_event({"type": "user.transcript.final", "text": "lights off"})
+        self.assertEqual(stt, {"type": "stt-end", "data": {"stt_output": {"text": "lights off"}}})
+        delta = protocol.normalize_event({"type": "assistant.text.delta", "text": "Done"})
+        self.assertEqual(delta["data"]["chat_log_delta"]["content"], "Done")
+        final = protocol.normalize_event({"type": "assistant.text.final", "text": "Done"})
+        self.assertEqual(final["type"], "intent-end")
+
+    def test_interruption_maps_to_a_provider_neutral_card_event(self) -> None:
+        event = protocol.normalize_event({"type": "assistant.interrupted", "audio_id": "a1"})
+        self.assertEqual(event, {"type": "external-interrupted", "data": {}})
+
+    def test_audio_requires_url(self) -> None:
+        with self.assertRaises(protocol.ProtocolError):
+            protocol.normalize_event({"type": "assistant.audio"})
+
+    def test_protocol_error_maps_to_card_error(self) -> None:
+        event = protocol.normalize_event({"type": "error", "code": "bad_gateway", "message": "Unavailable"})
+        self.assertEqual(event["type"], "error")
+        self.assertEqual(event["data"]["code"], "bad_gateway")
+
+
+class SessionStateTests(unittest.TestCase):
+    def test_happy_path(self) -> None:
+        state = session.ExternalSessionState()
+        for target in (session.SessionState.CONNECTING, session.SessionState.READY, session.SessionState.LISTENING, session.SessionState.RESPONDING, session.SessionState.FINISHED):
+            state.transition(target)
+        self.assertEqual(state.current, session.SessionState.FINISHED)
+
+    def test_invalid_transition_is_rejected(self) -> None:
+        state = session.ExternalSessionState()
+        with self.assertRaises(session.InvalidStateTransition):
+            state.transition(session.SessionState.RESPONDING)
+
+
+class FakeMessage:
+    def __init__(self, payload: dict[str, object]) -> None:
+        self.type = FakeWSMsgType.TEXT
+        self._payload = payload
+
+    def json(self) -> dict[str, object]:
+        return self._payload
+
+
+class FakeWebSocket:
+    def __init__(self, messages: list[FakeMessage]) -> None:
+        self.messages = messages
+        self.sent_json: list[dict[str, object]] = []
+        self.sent_bytes: list[bytes] = []
+        self.closed = False
+
+    async def send_json(self, message: dict[str, object]) -> None:
+        self.sent_json.append(message)
+
+    async def send_bytes(self, payload: bytes) -> None:
+        self.sent_bytes.append(payload)
+
+    async def receive(self) -> FakeMessage:
+        return self.messages.pop(0)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> FakeMessage:
+        if not self.messages:
+            raise StopAsyncIteration
+        return self.messages.pop(0)
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class FakeHttpSession:
+    def __init__(self, websocket: FakeWebSocket) -> None:
+        self.websocket = websocket
+        self.url = None
+        self.headers = None
+
+    async def ws_connect(self, url: str, *, headers: dict[str, str], heartbeat: int) -> FakeWebSocket:
+        self.url = url
+        self.headers = headers
+        self.heartbeat = heartbeat
+        return self.websocket
+
+
+class ClientTests(unittest.IsolatedAsyncioTestCase):
+    async def test_connect_forwards_audio_events_and_closes(self) -> None:
+        websocket = FakeWebSocket([
+            FakeMessage({"type": "session.ready", "session_id": "s1"}),
+            FakeMessage({"type": "assistant.response_started"}),
+            FakeMessage({"type": "session.finished"}),
+        ])
+        http = FakeHttpSession(websocket)
+        client = client_module.ExternalTransportClient(
+            http,
+            "wss://voice.example/transport/v1",
+            "secret",
+            protocol.SessionStart("s1", "assist_satellite.kitchen", "Kitchen"),
+            1,
+        )
+
+        await client.connect()
+        await client.write_audio(b"\x00\x00")
+        await client.end_input()
+        events = [event async for event in client.events()]
+        await client.close()
+
+        self.assertEqual(http.headers, {"Authorization": "Bearer secret"})
+        self.assertEqual(websocket.sent_json[0]["type"], "session.start")
+        self.assertEqual(websocket.sent_bytes, [b"\x00\x00"])
+        self.assertEqual(websocket.sent_json[-1], {"type": "input.end"})
+        self.assertEqual([event["type"] for event in events], ["assistant.response_started", "session.finished"])
+        self.assertTrue(websocket.closed)
+        self.assertEqual(client.state.current, session.SessionState.FINISHED)
+
+
+if __name__ == "__main__":
+    unittest.main()

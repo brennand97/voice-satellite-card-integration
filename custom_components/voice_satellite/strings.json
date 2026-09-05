@@ -14,6 +14,22 @@
     },
     "abort": {
       "already_configured": "A satellite with this name already exists."
+    },
+    "error": {
+      "external_transport_credentials_incomplete": "Set both the external transport URL and token, or leave both blank."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "External Transport",
+        "data": {
+          "external_transport_url": "External transport WebSocket URL",
+          "external_transport_token": "External transport token",
+          "external_transport_verify_tls": "Verify TLS certificate",
+          "external_transport_ready_timeout": "External transport ready timeout (seconds)"
+        }
+      }
     }
   },
   "entity": {
@@ -26,6 +42,9 @@
       },
       "pipeline_2": {
         "name": "Pipeline 2"
+      },
+      "conversation_transport": {
+        "name": "Conversation transport"
       },
       "vad_sensitivity": {
         "name": "Finished speaking detection",

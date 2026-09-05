@@ -792,7 +792,12 @@ async def ws_run_pipeline(
                 old_conn.send_event(old_msg_id, {"type": "displaced"})
             except Exception:
                 pass  # old connection may already be dead
-        entity.pipeline_audio_queue.put_nowait(b"")
+        try:
+            entity.pipeline_audio_queue.put_nowait(b"")
+        except asyncio.QueueFull:
+            # Drop one stale PCM frame so the terminal marker is never lost.
+            entity.pipeline_audio_queue.get_nowait()
+            entity.pipeline_audio_queue.put_nowait(b"")
 
     old_task = entity.pipeline_task
     if old_task and not old_task.done():
@@ -817,6 +822,18 @@ async def ws_run_pipeline(
                 msg["id"],
                 {"type": "init", "handler_id": None},
             )
+            # Do not silently route text-only requests through Assist when a
+            # satellite explicitly selected External Transport. Protocol v1
+            # is audio-first; a future protocol revision can add input.text.
+            if entity.uses_external_transport:
+                entity._send_pipeline_failure(
+                    connection,
+                    msg["id"],
+                    "external_transport_text_unsupported",
+                    "External Transport does not support text input yet",
+                )
+                connection.subscriptions[msg["id"]] = lambda: None
+                return
             task = hass.async_create_background_task(
                 entity.async_run_pipeline_text(
                     connection,
@@ -841,8 +858,13 @@ async def ws_run_pipeline(
             raise
         return
 
-    # Audio queue - card sends binary audio frames, empty bytes = stop
-    audio_queue: asyncio.Queue[bytes] = asyncio.Queue()
+    # Audio queue - card sends binary audio frames, empty bytes = stop.
+    # External Transport has a bounded pre-ready queue (64 native 80 ms
+    # chunks, approximately five seconds) so an unavailable endpoint cannot
+    # accumulate unbounded PCM in Home Assistant.
+    audio_queue: asyncio.Queue[bytes] = asyncio.Queue(
+        maxsize=64 if entity.uses_external_transport else 0
+    )
 
     # Register binary handler for incoming audio.
     # HA calls binary handlers with (hass, connection, payload).
@@ -851,7 +873,10 @@ async def ws_run_pipeline(
         _connection: websocket_api.ActiveConnection,
         data: bytes,
     ) -> None:
-        audio_queue.put_nowait(data)
+        try:
+            audio_queue.put_nowait(data)
+        except asyncio.QueueFull:
+            _LOGGER.warning("External transport audio queue overflow for '%s'", entity.satellite_name)
 
     handler_id, unregister = connection.async_register_binary_handler(
         _on_binary
@@ -870,20 +895,32 @@ async def ws_run_pipeline(
         # Run the pipeline as a background task so it doesn't block HA bootstrap.
         # Pipeline tasks are long-running (wake word detection) and must not
         # prevent HA from completing startup.
-        task = hass.async_create_background_task(
-            entity.async_run_pipeline(
-                audio_queue,
-                connection,
-                msg["id"],
-                start_stage,
-                end_stage,
-                conversation_id=conversation_id,
-                extra_system_prompt=extra_system_prompt,
-                wake_word_phrase=wake_word_phrase,
-                wake_word_slot=wake_word_slot,
-            ),
-            name=f"voice_satellite.{entity.satellite_name}_pipeline",
-        )
+        if entity.uses_external_transport:
+            task = hass.async_create_background_task(
+                entity.async_run_external_transport(
+                    audio_queue,
+                    connection,
+                    msg["id"],
+                    conversation_id=conversation_id,
+                    wake_word_phrase=wake_word_phrase,
+                ),
+                name=f"voice_satellite.{entity.satellite_name}_external_transport",
+            )
+        else:
+            task = hass.async_create_background_task(
+                entity.async_run_pipeline(
+                    audio_queue,
+                    connection,
+                    msg["id"],
+                    start_stage,
+                    end_stage,
+                    conversation_id=conversation_id,
+                    extra_system_prompt=extra_system_prompt,
+                    wake_word_phrase=wake_word_phrase,
+                    wake_word_slot=wake_word_slot,
+                ),
+                name=f"voice_satellite.{entity.satellite_name}_pipeline",
+            )
         entity.pipeline_task = task
 
         # Cleanup on unsubscribe - send stop signal to end the audio stream
@@ -891,7 +928,12 @@ async def ws_run_pipeline(
         # signal and leaves orphaned HA pipeline tasks.  The next ws_run_pipeline
         # call (or async_will_remove_from_hass) handles forced cancellation.
         def unsub() -> None:
-            audio_queue.put_nowait(b"")
+            try:
+                audio_queue.put_nowait(b"")
+            except asyncio.QueueFull:
+                # Preserve termination over one queued PCM chunk.
+                audio_queue.get_nowait()
+                audio_queue.put_nowait(b"")
             unregister()
 
         connection.subscriptions[msg["id"]] = unsub

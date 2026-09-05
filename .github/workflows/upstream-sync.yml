@@ -1,0 +1,164 @@
+name: Upstream synchronization
+
+on:
+  schedule:
+    # Run daily; repository variables select daily, weekly, or disabled.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Ignore the configured cadence
+        required: false
+        type: boolean
+        default: false
+
+# A scheduled/manual run starts from this trusted default-branch workflow.
+# It never installs dependencies or runs fetched upstream code.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - id: gate
+        env:
+          CADENCE: ${{ vars.UPSTREAM_SYNC_CADENCE }}
+          WEEKDAY: ${{ vars.UPSTREAM_SYNC_WEEKDAY }}
+          FORCE: ${{ inputs.force }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cadence="${CADENCE:-weekly}"
+          weekday="${WEEKDAY:-1}"
+          if [[ "$FORCE" == "true" || "$cadence" == "daily" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$cadence" == "weekly" && "$(date -u +%u)" == "$weekday" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  sync:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      changed: ${{ steps.merge.outputs.changed }}
+    steps:
+      - name: Check out trusted fork branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fetch and merge upstream without executing it
+        id: merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "voice-satellite upstream sync"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/jxlarrea/voice-satellite-card-integration.git || true
+          git fetch --no-tags upstream main
+
+          # An unmerged sync PR is intentionally cumulative. Start from its
+          # remote branch when it exists, so a later scheduled run appends the
+          # next upstream merge instead of replacing the PR or losing review
+          # discussion/history. The normal push is fast-forward only.
+          git fetch --no-tags origin automation/upstream-sync || true
+          base="main"
+          if git show-ref --verify --quiet refs/remotes/origin/automation/upstream-sync; then
+            base="origin/automation/upstream-sync"
+          fi
+          if git merge-base --is-ancestor upstream/main "$base"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git switch -C automation/upstream-sync "$base"
+          if ! git merge --no-commit --no-ff upstream/main; then
+            git merge --abort || true
+            echo "Upstream merge conflict; resolve it on automation/upstream-sync." >&2
+            exit 1
+          fi
+          git commit -m "chore: merge upstream Voice Satellite"
+          git push origin HEAD:refs/heads/automation/upstream-sync
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update synchronization PR
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr_number="$(gh pr list --head automation/upstream-sync --base main --state open --json number --jq '.[0].number')"
+          if [[ -z "$pr_number" ]]; then
+            gh pr create \
+              --base main \
+              --head automation/upstream-sync \
+              --title "chore: merge upstream Voice Satellite" \
+              --body "Automated upstream synchronization. The sync job merged source only; unprivileged PR checks validate it before any protected merge."
+            pr_number="$(gh pr list --head automation/upstream-sync --base main --state open --json number --jq '.[0].number')"
+          fi
+          # Do not merge sensitive workflow/build/dependency changes unattended.
+          if git diff --name-only origin/main...HEAD | grep -Eq '^(\.github/|scripts/|package(-lock)?\.json$|custom_components/voice_satellite/manifest\.json$)'; then
+            gh pr edit "$pr_number" --add-label "upstream-sync,needs-manual-review" || true
+            exit 0
+          fi
+          gh pr edit "$pr_number" --add-label "upstream-sync" || true
+          # This only queues GitHub auto-merge. Branch protection must still
+          # require the unprivileged validation workflow before merge.
+          gh pr merge "$pr_number" --auto --squash
+
+  notify-failure:
+    needs: [gate, sync]
+    if: always() && needs.gate.outputs.run == 'true' && needs.sync.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create or update owner notification issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ vars.UPSTREAM_SYNC_NOTIFY_LOGIN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="Automated upstream synchronization is failing"
+          issue="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')"
+          body="Upstream synchronization failed. Review the workflow run: $RUN_URL"
+          if [[ -z "$issue" ]]; then
+            args=(issue create --title "$title" --body "$body" --label automation --label upstream-sync --label needs-attention)
+            if [[ -n "$OWNER" ]]; then args+=(--assignee "$OWNER"); fi
+            gh "${args[@]}"
+          else
+            gh issue comment "$issue" --body "$body"
+            if [[ -n "$OWNER" ]]; then gh issue edit "$issue" --add-assignee "$OWNER"; fi
+          fi
+
+  resolve-notification:
+    needs: [gate, sync]
+    if: always() && needs.gate.outputs.run == 'true' && needs.sync.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Close resolved synchronization issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          issue="$(gh issue list --state open --search 'Automated upstream synchronization is failing in:title' --json number --jq '.[0].number')"
+          if [[ -n "$issue" ]]; then
+            gh issue close "$issue" --comment "A later upstream synchronization completed successfully."
+          fi
