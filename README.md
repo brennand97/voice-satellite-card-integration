@@ -106,7 +106,7 @@ Install this fork as a [HACS](https://hacs.xyz/) **custom repository**. Use the 
 
 [![Open this custom repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=brennand97&repository=voice-satellite-card-integration)
 
-If prompted, add `brennand97/voice-satellite-card-integration` as an **Integration** custom repository, then install **Voice Satellite**.
+If prompted, add `brennand97/voice-satellite-card-integration` as an **Integration** custom repository, then install **Voice Satellite (External Support)**.
 
 ### Manual
 
