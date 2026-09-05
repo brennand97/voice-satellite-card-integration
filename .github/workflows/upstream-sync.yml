@@ -135,6 +135,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "$(gh api "repos/$REPOSITORY" --jq '.has_issues')" != "true" ]]; then
+            echo "Repository Issues are disabled; GitHub Actions notifications remain available."
+            exit 0
+          fi
           title="Automated upstream synchronization is failing"
           issue="$(gh issue list --repo "$REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number')"
           body="Upstream synchronization failed. Review the workflow run: $RUN_URL"
@@ -160,6 +164,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "$(gh api "repos/$REPOSITORY" --jq '.has_issues')" != "true" ]]; then
+            echo "Repository Issues are disabled; no synchronization issue to close."
+            exit 0
+          fi
           issue="$(gh issue list --repo "$REPOSITORY" --state open --search 'Automated upstream synchronization is failing in:title' --json number --jq '.[0].number')"
           if [[ -n "$issue" ]]; then
             gh issue close "$issue" --repo "$REPOSITORY" --comment "A later upstream synchronization completed successfully."
