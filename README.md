@@ -1,18 +1,30 @@
 <h1 align="center" style="border-bottom: none">
-   <img alt="Voice Satellite for Home Assistant" src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/banner.png" width="650" />
+   <img alt="Voice Satellite for Home Assistant" src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/banner.png" width="650" />
 </h1>
 
 <p align="center">
-<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=jxlarrea&repository=voice-satellite-card-integration"><img src="https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge" alt="hacs_badge"></a>
-<img src="https://img.shields.io/github/stars/jxlarrea/voice-satellite-card-integration?style=for-the-badge&label=Stars&color=yellow" alt="Stars">
-<a href="https://github.com/jxlarrea/voice-satellite-card-integration/releases"><img src="https://img.shields.io/github/downloads/jxlarrea/voice-satellite-card-integration/total?style=for-the-badge&label=Downloads&color=blue" alt="Downloads"></a>
-<a href="https://github.com/jxlarrea/voice-satellite-card-integration/releases"><img src="https://shields.io/github/v/release/jxlarrea/voice-satellite-card-integration?style=for-the-badge&color=purple" alt="version"></a>
-<a href="https://github.com/jxlarrea/voice-satellite-card-integration/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxlarrea/voice-satellite-card-integration/release.yml?style=for-the-badge&label=Build" alt="Build"></a>
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=brennand97&repository=voice-satellite-card-integration"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" alt="HACS custom repository"></a>
+<img src="https://img.shields.io/github/stars/brennand97/voice-satellite-card-integration?style=for-the-badge&label=Stars&color=yellow" alt="Stars">
+<a href="https://github.com/brennand97/voice-satellite-card-integration/releases"><img src="https://img.shields.io/github/downloads/brennand97/voice-satellite-card-integration/total?style=for-the-badge&label=Downloads&color=blue" alt="Downloads"></a>
+<a href="https://github.com/brennand97/voice-satellite-card-integration/releases"><img src="https://shields.io/github/v/release/brennand97/voice-satellite-card-integration?style=for-the-badge&color=purple" alt="version"></a>
+<a href="https://github.com/brennand97/voice-satellite-card-integration/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/brennand97/voice-satellite-card-integration/release.yml?style=for-the-badge&label=Build" alt="Build"></a>
 </p>
 
 <p align="center">
 <a href="https://buymeacoffee.com/jxlarrea"><img src="https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee"></a>
 </p>
+
+## Fork-specific features
+
+This repository is a downstream fork of [jxlarrea/voice-satellite-card-integration](https://github.com/jxlarrea/voice-satellite-card-integration). It regularly merges upstream changes while maintaining the following additions:
+
+- **External Transport** — a provider-neutral conversation transport alongside the normal Home Assistant Assist pipeline. It is intended for a separately hosted voice service; Voice Satellite itself does not depend on Pipecat, OpenAI, or another specific provider.
+- **Native Kiosk Satellite audio relay** — when External Transport is selected, Kiosk Satellite's existing binary PCM path and wake-word pre-roll are relayed from Home Assistant to the external service without routing continuous microphone audio through the dashboard WebView.
+- **External Transport configuration** — backend-only endpoint/token options, a per-satellite `Home Assistant` / `External` transport select, bounded pre-ready audio buffering, protocol validation, and safe error cleanup.
+- **Versioned protocol and tests** — External Transport Protocol v1 is documented in [`docs/external-transport-protocol.md`](docs/external-transport-protocol.md), with isolated protocol/client unit tests.
+- **Safe upstream synchronization** — a scheduled GitHub Actions workflow creates or updates a protected synchronization PR, validates it without secrets, and supports owner notification on failure.
+
+The upstream Home Assistant Assist transport remains the default and fallback. External Transport v1 is currently audio-first; text-only `voice_satellite.show` requests intentionally do not fall back to Assist when External is selected, avoiding an unexpected mixed-provider turn.
 
 Turn any tablet, phone, or browser into a hands-free voice assistant for [Home Assistant](https://www.home-assistant.io) - like Alexa, Siri, or Google Home, but fully private and running on your own hardware. Just say the wake word and go: ask questions, control devices, set timers, get announcements, and see rich visual results - all without touching the screen.
 
@@ -41,10 +53,10 @@ Voice Satellite runs as a **global engine** that loads on every page of Home Ass
 ## Screenshots
 
 <p align="center">
- <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/locks.jpg" alt="Assist" width="49%"/>
- <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/videos.jpg" alt="Video Search" width="49%"/>
- <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/weather.jpg" alt="Weather" width="49%"/>
- <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/currency-waveform.jpg" alt="Stocks" width="49%"/>
+ <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/locks.jpg" alt="Assist" width="49%"/>
+ <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/videos.jpg" alt="Video Search" width="49%"/>
+ <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/weather.jpg" alt="Weather" width="49%"/>
+ <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/currency-waveform.jpg" alt="Stocks" width="49%"/>
 </p>
 
 ## Wall Tablet? Meet Kiosk Satellite
@@ -90,15 +102,15 @@ For the **Home Assistant Companion App** on **Android**, enable **Autoplay video
 
 ### HACS (Recommended)
 
-Voice Satellite is available in [HACS](https://hacs.xyz/). Use the link below to open the HACS repository in Home Assistant.
+Install this fork as a [HACS](https://hacs.xyz/) **custom repository**. Use the link below to open it directly in Home Assistant.
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jxlarrea&repository=voice-satellite-card-integration)
+[![Open this custom repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=brennand97&repository=voice-satellite-card-integration)
 
-Or search for `Voice Satellite` in the HACS default repository.
+If prompted, add `brennand97/voice-satellite-card-integration` as an **Integration** custom repository, then install **Voice Satellite**.
 
 ### Manual
 
-1. Download the [latest release ZIP file](https://github.com/jxlarrea/voice-satellite-card-integration/releases/latest)
+1. Download the [latest release ZIP file](https://github.com/brennand97/voice-satellite-card-integration/releases/latest)
 2. Copy the `custom_components/voice_satellite` folder to your `config/custom_components/` directory
 3. Restart Home Assistant
 
@@ -118,7 +130,7 @@ Or search for `Voice Satellite` in the HACS default repository.
 The **Voice Satellite** sidebar panel is the central configuration hub. Pick the satellite entity for this browser, tune microphone processing, choose a skin, and set up the screensaver - all stored per-browser in local storage. The optional [Mini Card](docs/configuration.md#mini-card) provides an inline, text-first dashboard variant when you don't want the fullscreen overlay.
 
 <p align="center">
- <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/sidepanel.png" alt="Sidebar Panel" width="650"/>
+ <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/sidepanel.png" alt="Sidebar Panel" width="650"/>
 </p>
 
 See the [Configuration reference](docs/configuration.md) for every setting in the sidebar panel and mini card.
@@ -128,7 +140,7 @@ See the [Configuration reference](docs/configuration.md) for every setting in th
 Each satellite is a real `assist_satellite` device in Home Assistant, with a companion `media_player`, per-device configuration entities (pipeline, wake word, TTS output, mute, etc.), and live state sync (`idle` / `listening` / `processing` / `responding`). After every turn the integration fires a `voice_satellite_chat` event carrying the user's transcript, the assistant's full reply, and the tools the LLM invoked, ready to drive automations. Timers fire a `voice_satellite_timer` event too, so a timer set in the kitchen can notify your phone or announce itself on another satellite.
 
 <p align="center">
-   <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/integration.png" alt="Integration" width="650"/>
+   <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/integration.png" alt="Integration" width="650"/>
 </p>
 
 See the [Integration reference](docs/integration.md) for device entities, state values, attribute list, and event payload.
@@ -157,9 +169,9 @@ See the [Wake Word reference](docs/wake-word.md) for the full engine comparison,
 
 Nine built-in skins (Default, Alexa, Google Home, Home Assistant, Ink Blobs, Lens Flares, Retro Terminal, Siri, Waveform) theme the overlay, timer pills, and activity bar. Every skin can be further tweaked via the **Custom CSS** field in the sidebar panel, and the Waveform, Ink Blobs, and Lens Flares skins expose dedicated CSS variables for color control. Built-in chime sounds (`wake`, `done`, `error`, `alert`, `announce`) can be replaced with your own MP3s that survive HACS updates.
 
-<img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/lensflare.png" alt="Lens Flare Skins" width="100%"/>
+<img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/lensflare.png" alt="Lens Flare Skins" width="100%"/>
 
-<img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/skins.jpg" alt="Skins" width="100%"/>
+<img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/skins.jpg" alt="Skins" width="100%"/>
 
 See the [Skins & Customization reference](docs/customization.md) for the skin list, CSS variable tables, and the custom sounds folder layout.
 
@@ -182,7 +194,7 @@ Most setup issues come from missing microphone permissions, mixed HTTP/HTTPS con
 The sidebar panel ships with a **Diagnostics & troubleshooting** section that runs automated client-side and server-side checks (secure context, microphone permission, pipeline configuration, mixed-content TTS, wake word mode, Lovelace resource registration, and more). A **Copy report** button produces a paste-ready markdown block with the full results, ready to attach to a GitHub issue.
 
 <p align="center">
-   <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/diagnostics.png" alt="Integration" width="650"/>
+   <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/diagnostics.png" alt="Integration" width="650"/>
 </p>
 
 See the [Troubleshooting reference](docs/troubleshooting.md) for the most common issues and their fixes.
