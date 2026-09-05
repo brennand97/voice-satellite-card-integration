@@ -150,6 +150,11 @@ jobs:
             echo "Repository Issues are disabled; GitHub Actions notifications remain available."
             exit 0
           fi
+          # Labels are created here rather than assumed to exist on a newly
+          # created fork. --force makes this idempotent on later failures.
+          gh label create automation --repo "$REPOSITORY" --color "1D76DB" --description "Automated repository maintenance" --force
+          gh label create upstream-sync --repo "$REPOSITORY" --color "5319E7" --description "Upstream synchronization" --force
+          gh label create needs-attention --repo "$REPOSITORY" --color "D93F0B" --description "Requires owner attention" --force
           title="Automated upstream synchronization is failing"
           issue="$(gh issue list --repo "$REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number')"
           body="Upstream synchronization failed. Review the workflow run: $RUN_URL"
