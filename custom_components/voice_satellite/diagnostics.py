@@ -31,7 +31,16 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, INTEGRATION_VERSION, JS_FILENAME, URL_BASE
+from .const import (
+    CONF_EXTERNAL_TRANSPORT_TOKEN,
+    CONF_EXTERNAL_TRANSPORT_URL,
+    CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
+    CONVERSATION_TRANSPORT_EXTERNAL,
+    DOMAIN,
+    INTEGRATION_VERSION,
+    JS_FILENAME,
+    URL_BASE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,6 +50,7 @@ CAT_PIPELINE = "Assist pipeline"
 CAT_SATELLITE = "Satellite"
 CAT_FRONTEND = "Frontend resource"
 CAT_WAKE = "Wake word"
+CAT_EXTERNAL_TRANSPORT = "External transport"
 
 
 def register(hass: HomeAssistant) -> None:
@@ -277,6 +287,64 @@ def _check_version(bundle_version: str | None) -> list[dict[str, Any]]:
 # ── Entity + pipeline ───────────────────────────────────────────────
 
 
+def _check_external_transport(entity: Any, selected: bool) -> list[dict[str, Any]]:
+    """Report the selected transport without disclosing endpoint credentials."""
+    if not selected:
+        return [_result(
+            "srv.external_transport.selection",
+            CAT_EXTERNAL_TRANSPORT,
+            "External Transport selected",
+            "skip",
+            detail="Home Assistant Assist is selected for this satellite.",
+        )]
+
+    options = entity._entry.options
+    url = options.get(CONF_EXTERNAL_TRANSPORT_URL)
+    token = options.get(CONF_EXTERNAL_TRANSPORT_TOKEN)
+    if not isinstance(url, str) or not url.strip() or not isinstance(token, str) or not token.strip():
+        return [_result(
+            "srv.external_transport.configured",
+            CAT_EXTERNAL_TRANSPORT,
+            "External Transport configured",
+            "fail",
+            detail="External Transport is selected, but its endpoint or credential is missing.",
+            remediation="Open the integration's Configure page and provide both the External Transport URL and token.",
+        )]
+
+    out = [_result(
+        "srv.external_transport.configured",
+        CAT_EXTERNAL_TRANSPORT,
+        "External Transport configured",
+        "pass",
+        detail="Endpoint and credential are configured (values redacted).",
+    )]
+    if not options.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True):
+        out.append(_result(
+            "srv.external_transport.tls",
+            CAT_EXTERNAL_TRANSPORT,
+            "External Transport TLS verification",
+            "warn",
+            detail="TLS certificate verification is disabled.",
+            remediation="Enable TLS verification unless the endpoint uses a deliberately trusted private certificate.",
+        ))
+    else:
+        out.append(_result(
+            "srv.external_transport.tls",
+            CAT_EXTERNAL_TRANSPORT,
+            "External Transport TLS verification",
+            "pass",
+            detail="TLS certificate verification is enabled.",
+        ))
+    out.append(_result(
+        "srv.external_transport.connection",
+        CAT_EXTERNAL_TRANSPORT,
+        "External Transport connection",
+        "skip",
+        detail="Connectivity is verified when a voice session starts; diagnostics does not contact the endpoint.",
+    ))
+    return out
+
+
 async def _check_entity_and_pipeline(
     hass: HomeAssistant, entity_id: str | None
 ) -> list[dict[str, Any]]:
@@ -306,6 +374,13 @@ async def _check_entity_and_pipeline(
         "srv.entity.exists", CAT_SATELLITE, "Selected satellite entity exists",
         "pass", detail=entity_id,
     ))
+
+    external_transport = entity.uses_external_transport
+    out.extend(_check_external_transport(entity, external_transport))
+    if external_transport:
+        # External Transport receives native PCM directly, so Assist pipeline
+        # engine checks would be misleading for this selected route.
+        return out
 
     # Resolve Pipeline 1 (always checked — it's the default route)
     pipeline = await _resolve_pipeline(hass, entity)
