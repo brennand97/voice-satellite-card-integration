@@ -129,21 +129,22 @@ jobs:
       - name: Create or update owner notification issue
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
           OWNER: ${{ vars.UPSTREAM_SYNC_NOTIFY_LOGIN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
           title="Automated upstream synchronization is failing"
-          issue="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')"
+          issue="$(gh issue list --repo "$REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number')"
           body="Upstream synchronization failed. Review the workflow run: $RUN_URL"
           if [[ -z "$issue" ]]; then
-            args=(issue create --title "$title" --body "$body" --label automation --label upstream-sync --label needs-attention)
+            args=(issue create --repo "$REPOSITORY" --title "$title" --body "$body" --label automation --label upstream-sync --label needs-attention)
             if [[ -n "$OWNER" ]]; then args+=(--assignee "$OWNER"); fi
             gh "${args[@]}"
           else
-            gh issue comment "$issue" --body "$body"
-            if [[ -n "$OWNER" ]]; then gh issue edit "$issue" --add-assignee "$OWNER"; fi
+            gh issue comment "$issue" --repo "$REPOSITORY" --body "$body"
+            if [[ -n "$OWNER" ]]; then gh issue edit "$issue" --repo "$REPOSITORY" --add-assignee "$OWNER"; fi
           fi
 
   resolve-notification:
@@ -155,10 +156,11 @@ jobs:
       - name: Close resolved synchronization issue
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          issue="$(gh issue list --state open --search 'Automated upstream synchronization is failing in:title' --json number --jq '.[0].number')"
+          issue="$(gh issue list --repo "$REPOSITORY" --state open --search 'Automated upstream synchronization is failing in:title' --json number --jq '.[0].number')"
           if [[ -n "$issue" ]]; then
-            gh issue close "$issue" --comment "A later upstream synchronization completed successfully."
+            gh issue close "$issue" --repo "$REPOSITORY" --comment "A later upstream synchronization completed successfully."
           fi
