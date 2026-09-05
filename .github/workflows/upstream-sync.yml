@@ -11,6 +11,11 @@ on:
         required: false
         type: boolean
         default: false
+      simulate_failure:
+        description: Deliberately fail before synchronization to test notifications
+        required: false
+        type: boolean
+        default: false
 
 # A scheduled/manual run starts from this trusted default-branch workflow.
 # It never installs dependencies or runs fetched upstream code.
@@ -55,6 +60,12 @@ jobs:
     outputs:
       changed: ${{ steps.merge.outputs.changed }}
     steps:
+      - name: Simulate failure for notification testing
+        if: inputs.simulate_failure == true
+        run: |
+          echo "Deliberate manual notification test; no synchronization was attempted." >&2
+          exit 1
+
       - name: Check out trusted fork branch
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
