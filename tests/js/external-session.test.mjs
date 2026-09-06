@@ -80,6 +80,16 @@ test('playback completion restores delegated capture and starts follow-up timeou
   assert.deepEqual(h.calls.filter(([name]) => name === 'hide'), [['hide']]);
 });
 
+test('replacement run cannot orphan prior playback', () => {
+  const h = harness();
+  activePlayback(h);
+  h.controller.onRunStart();
+
+  assert.equal(h.controller.state, ExternalState.CAPTURING);
+  assert.equal(h.controller.playbackResponseId, null);
+  assert.deepEqual(h.calls.filter(([name]) => name === 'stop'), [['stop', 'response-1', 'new_run']]);
+});
+
 test('stale interruptions cannot stop newer playback', () => {
   const h = harness();
   activePlayback(h);

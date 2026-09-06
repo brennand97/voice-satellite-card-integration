@@ -69,8 +69,10 @@ export class ExternalSessionController {
 
   onRunStart() {
     this._clearFollowupTimer();
+    // A replacement subscription can arrive before its displaced event. Do
+    // not orphan an old native handle while resetting correlation ownership.
+    this._stopPlayback('new_run');
     this._providerResponseId = this._providerTurnId = null;
-    this._playbackResponseId = this._playbackTurnId = null;
     this._transition(ExternalState.CAPTURING);
   }
 
