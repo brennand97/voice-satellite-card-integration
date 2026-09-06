@@ -1430,7 +1430,7 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
             service_entry_id = options.get(CONF_CONVERSATION_SERVICE_ENTRY_ID)
             profile_id = options.get(CONF_CONVERSATION_PROFILE_ID)
             if not isinstance(service_entry_id, str) or not isinstance(profile_id, str):
-                _LOGGER.error("External Transport requires a migrated service/profile assignment")
+                _LOGGER.error("External Transport requires a service/profile assignment")
                 return None
             service_entry = self.hass.config_entries.async_get_entry(service_entry_id)
             subentry = (

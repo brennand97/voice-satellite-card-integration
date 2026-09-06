@@ -121,7 +121,7 @@ The parent owns credentials; subentries never copy them. A physical Voice Satell
 
 This allows the integration and conversation entity to exist with zero Satellite entries. Both real Satellite runtimes and conversation entities resolve credentials from the parent entry. Never borrow credentials from an arbitrary Satellite.
 
-For backward compatibility, existing Satellite-local connection options continue during migration. Provide an admin migration action that creates a parent service entry/profile subentry and updates the Satellite references.
+Satellite-local External Transport credentials are unsupported. Every physical Satellite must explicitly reference a parent service entry and conversation profile.
 
 Validation requirements:
 
@@ -132,7 +132,6 @@ Validation requirements:
 - requested tools: unique exact-name string list;
 - no MCP URL, bearer token, API key, or arbitrary script command in a profile subentry;
 - unknown fields rejected;
-- config-entry migration/versioning support;
 - diagnostics redact credential/prompt content and show only profile IDs/tool names.
 
 Do not expose profile assignment as an unrestricted HA `select` entity because changing it changes executable capability.
@@ -419,7 +418,7 @@ Tool request/results now cross the protocol but can be large. Before exposing th
 6. Add Satellite options-flow assignment to a connection/profile subentry.
 7. Resolve and snapshot connection/profile/device context when creating a real Satellite runtime.
 8. Recreate runtimes after connection/profile changes.
-9. Add backward-compatible migration from Satellite-local connection options.
+9. Require explicit service/profile assignment; do not retain Satellite-local credential fallback or migration code.
 
 ### Phase 3 — Device-context timer tool
 

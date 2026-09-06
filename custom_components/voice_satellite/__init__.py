@@ -13,24 +13,18 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from types import MappingProxyType
 
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import Context, HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
-    CONF_CONVERSATION_PROFILE_ID,
     CONF_CONVERSATION_SERVICE_ENTRY_ID,
     CONF_ENTRY_TYPE,
-    CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT,
-    CONF_EXTERNAL_TRANSPORT_TOKEN,
-    CONF_EXTERNAL_TRANSPORT_URL,
-    CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
     DOMAIN,
     ENTRY_TYPE_SERVICE,
 )
@@ -561,42 +555,6 @@ async def ws_save_panel_settings(
     entity_id = msg["entity_id"]
     await async_save_panel_settings(hass, entity_id, msg["config"])
     connection.send_result(msg["id"], {"success": True})
-
-
-async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Move legacy Satellite-local credentials into a shared service entry."""
-    if entry.version >= 2 or entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE:
-        return True
-    options = dict(entry.options)
-    url = options.get(CONF_EXTERNAL_TRANSPORT_URL)
-    token = options.get(CONF_EXTERNAL_TRANSPORT_TOKEN)
-    if not isinstance(url, str) or not url or not isinstance(token, str) or not token:
-        hass.config_entries.async_update_entry(entry, version=2)
-        return True
-    service_entry = ConfigEntry(
-        data={
-            CONF_ENTRY_TYPE: ENTRY_TYPE_SERVICE,
-            CONF_EXTERNAL_TRANSPORT_URL: url,
-            CONF_EXTERNAL_TRANSPORT_TOKEN: token,
-            CONF_EXTERNAL_TRANSPORT_VERIFY_TLS: bool(options.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True)),
-            CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT: options.get(CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5),
-        },
-        discovery_keys=MappingProxyType({}), domain=DOMAIN, minor_version=1, options={}, source=SOURCE_IMPORT,
-        subentries_data=({"subentry_type": "conversation", "title": f"{entry.title} External conversation", "unique_id": None, "data": {}},),
-        title=f"{entry.title} External Conversation Service", unique_id=None, version=2,
-    )
-    try:
-        await hass.config_entries.async_add(service_entry)
-    except Exception:
-        _LOGGER.exception("Failed to migrate External Transport credentials")
-        return False
-    profile_id = next(iter(service_entry.subentries))
-    for key in (CONF_EXTERNAL_TRANSPORT_URL, CONF_EXTERNAL_TRANSPORT_TOKEN, CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT):
-        options.pop(key, None)
-    options[CONF_CONVERSATION_SERVICE_ENTRY_ID] = service_entry.entry_id
-    options[CONF_CONVERSATION_PROFILE_ID] = profile_id
-    hass.config_entries.async_update_entry(entry, options=options, version=2)
-    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
