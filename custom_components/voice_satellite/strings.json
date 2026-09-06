@@ -3,12 +3,34 @@
     "step": {
       "user": {
         "title": "Add Voice Satellite (External Support)",
-        "description": "Create a virtual Assist satellite for a browser tablet running Voice Satellite.",
+        "description": "Create a browser Voice Satellite, or choose External Conversation Service to configure a shared External Transport connection.",
         "data": {
-          "name": "Satellite name"
+          "name": "Satellite name",
+          "entry_type": "Configuration type"
         },
         "data_description": {
           "name": "A descriptive name for this tablet (e.g. Kitchen Tablet, Entrance Tablet)."
+        }
+      },
+      "external_service": {
+        "title": "External Conversation Service",
+        "description": "This stores the External Transport connection once. Satellites and text conversations select one of its conversation profiles; do not put this token in a Satellite profile.",
+        "data": {
+          "name": "Service name",
+          "external_transport_url": "External Transport WebSocket URL",
+          "external_transport_token": "External Transport bearer token",
+          "external_transport_verify_tls": "Verify TLS certificate",
+          "external_transport_ready_timeout": "Connection timeout (seconds)",
+          "profile_name": "First conversation profile name",
+          "tool_profile": "Trusted server tool profile"
+        },
+        "data_description": {
+          "external_transport_url": "The wss:// URL ending in /transport/v1.",
+          "external_transport_token": "The transport service bearer token. It is stored only in this service entry.",
+          "external_transport_verify_tls": "Leave enabled unless the server uses a deliberately trusted private certificate.",
+          "external_transport_ready_timeout": "How long to wait for the service to accept a session.",
+          "profile_name": "A friendly name shown when choosing this conversation agent.",
+          "tool_profile": "An exact trusted profile name from the server configuration, such as home-generic. It is not an individual tool name."
         }
       }
     },
@@ -18,6 +40,40 @@
     "error": {
       "external_transport_credentials_incomplete": "Set both the external transport URL and token, or leave both blank.",
       "invalid_name": "Enter a non-empty satellite name."
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "entry_type": "External conversation profile",
+      "initiate_flow": {
+        "user": "Add conversation profile",
+        "reconfigure": "Reconfigure conversation profile"
+      },
+      "step": {
+        "init": {
+          "title": "External conversation profile",
+          "description": "A profile is a named, reusable policy for one External Conversation Service. Server policy remains authoritative.",
+          "data": {
+            "profile_name": "Profile name",
+            "tool_profile": "Trusted server tool profile",
+            "initial_prompt": "Initial prompt (optional)",
+            "initial_voice": "Initial voice (optional)",
+            "requested_tools": "Restrict to exact tools (optional)"
+          },
+          "data_description": {
+            "profile_name": "Friendly name shown when selecting the conversation agent.",
+            "tool_profile": "Exact profile name configured in the External Transport server, such as home-generic. This is required and cannot grant tools by itself.",
+            "initial_prompt": "Optional profile-specific instruction. Leave blank to use the server default.",
+            "initial_voice": "Optional provider voice override for audio Satellites. Leave blank for the server default; it has no effect for text-only conversations.",
+            "requested_tools": "Optional comma- or newline-separated exact tool names. Leave blank to use the complete server-approved profile. This can only restrict access; wildcards are not allowed."
+          }
+        }
+      },
+      "error": {
+        "invalid_profile": "Enter valid profile settings.",
+        "invalid_tool_profile": "Enter a valid trusted server tool profile name.",
+        "invalid_requested_tools": "Requested tools must be unique exact names; wildcards are not allowed."
+      }
     }
   },
   "options": {
