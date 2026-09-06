@@ -1,3 +1,5 @@
 pytest>=8,<9
 pytest-asyncio>=0.24,<1
 pytest-homeassistant-custom-component>=0.13
+# aiodns currently imports result annotations removed in pycares 4.11.
+pycares>=4.9,<4.11
