@@ -72,8 +72,9 @@ class ExternalConversationProfileFlow(ConfigSubentryFlow):
                 CONF_INITIAL_VOICE, default=data.get(CONF_INITIAL_VOICE, "")
             ): str,
             vol.Optional(
-                CONF_REQUESTED_TOOLS, default=data.get(CONF_REQUESTED_TOOLS, [])
-            ): [str],
+                CONF_REQUESTED_TOOLS,
+                default=", ".join(data.get(CONF_REQUESTED_TOOLS, [])),
+            ): str,
         }
         if self._is_new:
             schema = {
@@ -105,11 +106,17 @@ class ExternalConversationProfileFlow(ConfigSubentryFlow):
                 data[key] = value
             else:
                 data.pop(key, None)
-        tools = data.get(CONF_REQUESTED_TOOLS, [])
+        requested = data.get(CONF_REQUESTED_TOOLS, "")
+        if not isinstance(requested, str):
+            raise ValueError("invalid_requested_tools")
+        tools = [
+            name.strip()
+            for name in requested.replace("\n", ",").split(",")
+            if name.strip()
+        ]
         if (
-            not isinstance(tools, list)
-            or len(tools) > 128
-            or not all(isinstance(name, str) and name and "*" not in name for name in tools)
+            len(tools) > 128
+            or not all("*" not in name for name in tools)
             or len(set(tools)) != len(tools)
         ):
             raise ValueError("invalid_requested_tools")
