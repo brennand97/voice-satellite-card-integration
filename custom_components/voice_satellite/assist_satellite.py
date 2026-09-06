@@ -1427,22 +1427,22 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
                 await self._external_runtime.close("replacing_failed_runtime")
                 self._external_runtime = None
             options = self._entry.options
-            connection = options
-            profile: dict[str, Any] = {}
             service_entry_id = options.get(CONF_CONVERSATION_SERVICE_ENTRY_ID)
             profile_id = options.get(CONF_CONVERSATION_PROFILE_ID)
-            if isinstance(service_entry_id, str) and isinstance(profile_id, str):
-                service_entry = self.hass.config_entries.async_get_entry(service_entry_id)
-                subentry = (
-                    service_entry.subentries.get(profile_id)
-                    if service_entry is not None
-                    else None
-                )
-                if service_entry is None or subentry is None or subentry.subentry_type != "conversation":
-                    _LOGGER.warning("External Conversation Service profile assignment is invalid")
-                    return None
-                connection = service_entry.data
-                profile = dict(subentry.data)
+            if not isinstance(service_entry_id, str) or not isinstance(profile_id, str):
+                _LOGGER.error("External Transport requires a migrated service/profile assignment")
+                return None
+            service_entry = self.hass.config_entries.async_get_entry(service_entry_id)
+            subentry = (
+                service_entry.subentries.get(profile_id)
+                if service_entry is not None
+                else None
+            )
+            if service_entry is None or subentry is None or subentry.subentry_type != "conversation":
+                _LOGGER.warning("External Conversation Service profile assignment is invalid")
+                return None
+            connection = service_entry.data
+            profile: dict[str, Any] = dict(subentry.data)
             url = connection.get(CONF_EXTERNAL_TRANSPORT_URL, "")
             token = connection.get(CONF_EXTERNAL_TRANSPORT_TOKEN, "")
             if not isinstance(url, str) or not url or not isinstance(token, str) or not token:
