@@ -126,53 +126,57 @@ class VoiceSatelliteConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class VoiceSatelliteOptionsFlow(OptionsFlow):
-    """Configure backend-only External Transport connection settings."""
+    """Assign a Satellite to an existing shared conversation profile."""
 
     async def async_step_init(
         self, user_input: dict[str, object] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
-            url = str(user_input.get(CONF_EXTERNAL_TRANSPORT_URL, "")).strip()
-            token = str(user_input.get(CONF_EXTERNAL_TRANSPORT_TOKEN, "")).strip()
-            service_entry_id = str(user_input.get(CONF_CONVERSATION_SERVICE_ENTRY_ID, "")).strip()
-            profile_id = str(user_input.get(CONF_CONVERSATION_PROFILE_ID, "")).strip()
-            if bool(url) != bool(token) or bool(service_entry_id) != bool(profile_id):
+            service_entry_id = str(user_input.get(CONF_CONVERSATION_SERVICE_ENTRY_ID, ""))
+            profile_id = str(user_input.get(CONF_CONVERSATION_PROFILE_ID, ""))
+            service = self.hass.config_entries.async_get_entry(service_entry_id)
+            profile = service.subentries.get(profile_id) if service is not None else None
+            if (
+                service is None
+                or service.data.get(CONF_ENTRY_TYPE) != ENTRY_TYPE_SERVICE
+                or profile is None
+                or profile.subentry_type != "conversation"
+            ):
                 return self.async_show_form(
-                    step_id="init",
-                    data_schema=self._schema(),
-                    errors={"base": "external_transport_credentials_incomplete"},
+                    step_id="init", data_schema=self._schema(), errors={"base": "invalid_profile_assignment"}
                 )
-            return self.async_create_entry(title="", data=dict(user_input))
-
+            return self.async_create_entry(
+                title="",
+                data={
+                    CONF_CONVERSATION_SERVICE_ENTRY_ID: service_entry_id,
+                    CONF_CONVERSATION_PROFILE_ID: profile_id,
+                },
+            )
         return self.async_show_form(step_id="init", data_schema=self._schema())
 
     def _schema(self) -> vol.Schema:
         options = self.config_entry.options
+        services = {
+            entry.entry_id: entry.title
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+            if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE
+        }
+        profiles = {
+            subentry.subentry_id: f"{entry.title}: {subentry.title}"
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+            if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE
+            for subentry in entry.subentries.values()
+            if subentry.subentry_type == "conversation"
+        }
         return vol.Schema(
             {
-                vol.Optional(
-                    CONF_EXTERNAL_TRANSPORT_URL,
-                    default=options.get(CONF_EXTERNAL_TRANSPORT_URL, ""),
-                ): str,
-                vol.Optional(
-                    CONF_EXTERNAL_TRANSPORT_TOKEN,
-                    default=options.get(CONF_EXTERNAL_TRANSPORT_TOKEN, ""),
-                ): str,
-                vol.Optional(
-                    CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
-                    default=options.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True),
-                ): bool,
-                vol.Optional(
-                    CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT,
-                    default=options.get(CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5),
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
-                vol.Optional(
+                vol.Required(
                     CONF_CONVERSATION_SERVICE_ENTRY_ID,
-                    default=options.get(CONF_CONVERSATION_SERVICE_ENTRY_ID, ""),
-                ): str,
-                vol.Optional(
+                    default=options.get(CONF_CONVERSATION_SERVICE_ENTRY_ID),
+                ): vol.In(services),
+                vol.Required(
                     CONF_CONVERSATION_PROFILE_ID,
-                    default=options.get(CONF_CONVERSATION_PROFILE_ID, ""),
-                ): str,
+                    default=options.get(CONF_CONVERSATION_PROFILE_ID),
+                ): vol.In(profiles),
             }
         )
