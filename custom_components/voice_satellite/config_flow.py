@@ -48,21 +48,32 @@ class VoiceSatelliteConfigFlow(ConfigFlow, domain=DOMAIN):
             if user_input[CONF_ENTRY_TYPE] == ENTRY_TYPE_SERVICE:
                 return await self.async_step_external_service()
             name = user_input["name"].strip()
+            if not name:
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=self._user_schema(),
+                    errors={"base": "invalid_name"},
+                )
             await self.async_set_unique_id(name.lower().replace(" ", "_"))
             self._abort_if_unique_id_configured()
             return self.async_create_entry(title=name, data={"name": name})
 
         return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("name"): str,
-                    vol.Required(CONF_ENTRY_TYPE, default="satellite"): vol.In(
-                        {"satellite": "Voice Satellite", ENTRY_TYPE_SERVICE: "External Conversation Service"}
-                    ),
-                }
-            ),
-            errors={},
+            step_id="user", data_schema=self._user_schema(), errors={}
+        )
+
+    @staticmethod
+    def _user_schema() -> vol.Schema:
+        return vol.Schema(
+            {
+                vol.Required("name"): str,
+                vol.Required(CONF_ENTRY_TYPE, default="satellite"): vol.In(
+                    {
+                        "satellite": "Voice Satellite",
+                        ENTRY_TYPE_SERVICE: "External Conversation Service",
+                    }
+                ),
+            }
         )
 
     async def async_step_external_service(

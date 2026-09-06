@@ -27,12 +27,39 @@ def _assert_schema_serializes(schema) -> None:
     assert to_field_list(schema, custom_serializer=cv.custom_serializer)
 
 
-async def test_service_creation_flow_schemas_serialize_and_create_entry(hass) -> None:
+async def _start_user_flow(hass):
     result = await hass.config_entries.flow.async_init(
         "voice_satellite", context={"source": "user"}
     )
     assert result["type"] is FlowResultType.FORM
     _assert_schema_serializes(result["data_schema"])
+    return result
+
+
+async def test_satellite_creation_rejects_blank_and_duplicate_names(hass) -> None:
+    result = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "   ", CONF_ENTRY_TYPE: "satellite"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_name"}
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "Kitchen", CONF_ENTRY_TYPE: "satellite"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Kitchen"
+
+    result = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": " kitchen ", CONF_ENTRY_TYPE: "satellite"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_service_creation_flow_schemas_serialize_and_create_entry(hass) -> None:
+    result = await _start_user_flow(hass)
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
@@ -56,6 +83,30 @@ async def test_service_creation_flow_schemas_serialize_and_create_entry(hass) ->
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_ENTRY_TYPE] == ENTRY_TYPE_SERVICE
     assert result["data"][CONF_EXTERNAL_TRANSPORT_TOKEN] == "test-token"
+
+
+async def test_service_creation_rejects_incomplete_credentials(hass) -> None:
+    result = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "", CONF_ENTRY_TYPE: ENTRY_TYPE_SERVICE}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "external_service"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "name": "External",
+            CONF_EXTERNAL_TRANSPORT_URL: "wss://voice.example/transport/v1",
+            CONF_EXTERNAL_TRANSPORT_TOKEN: "",
+            CONF_EXTERNAL_TRANSPORT_VERIFY_TLS: True,
+            CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT: 5,
+            "profile_name": "Default profile",
+            "tool_profile": "home-generic",
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "external_transport_credentials_incomplete"}
 
 
 @pytest.mark.parametrize(

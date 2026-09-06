@@ -16,7 +16,8 @@
       "already_configured": "A satellite with this name already exists."
     },
     "error": {
-      "external_transport_credentials_incomplete": "Set both the external transport URL and token, or leave both blank."
+      "external_transport_credentials_incomplete": "Set both the external transport URL and token, or leave both blank.",
+      "invalid_name": "Enter a non-empty satellite name."
     }
   },
   "options": {
