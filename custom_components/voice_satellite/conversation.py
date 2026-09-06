@@ -116,7 +116,12 @@ class ExternalTransportConversationEntity(conversation.ConversationEntity):
             ready_timeout,
         )
         try:
-            await client.connect()
+            capabilities = await client.connect()
+            configured_profile = options.get(CONF_TOOL_PROFILE)
+            if configured_profile is not None and capabilities.effective_profile != configured_profile:
+                raise conversation.ConverseError("External conversation profile was not accepted")
+            if requested_tools is not None and not set(capabilities.effective_tools) <= set(requested_tools):
+                raise conversation.ConverseError("External conversation tool policy was widened")
             turn_id = str(uuid4())
             await client.start_turn(turn_id, "text")
             await client.write_text(turn_id, user_input.text)
