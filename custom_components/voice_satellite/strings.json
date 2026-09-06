@@ -36,7 +36,7 @@
           "external_transport_verify_tls": "Leave enabled unless the server uses a deliberately trusted private certificate.",
           "external_transport_ready_timeout": "How long to wait for the service to accept a session.",
           "profile_name": "A friendly name shown when choosing this conversation agent.",
-          "tool_profile": "An exact trusted profile name from the server configuration, such as home-generic. It is not an individual tool name."
+          "tool_profile": "An exact trusted profile name from the server configuration, such as home-generic. It is not an individual tool name and is not auto-discovered; copy it from voice-tools.json."
         }
       }
     },
@@ -68,10 +68,10 @@
           },
           "data_description": {
             "profile_name": "Friendly name shown when selecting the conversation agent.",
-            "tool_profile": "Exact profile name configured in the External Transport server, such as home-generic. This is required and cannot grant tools by itself.",
+            "tool_profile": "Exact profile name configured in the External Transport server, such as home-generic. It is not auto-discovered or validated here; copy it from voice-tools.json. This cannot grant tools by itself.",
             "initial_prompt": "Optional profile-specific instruction. Leave blank to use the server default.",
             "initial_voice": "Optional provider voice override for audio Satellites. Leave blank for the server default; it has no effect for text-only conversations.",
-            "requested_tools": "Optional comma- or newline-separated exact tool names. Leave blank to use the complete server-approved profile. This can only restrict access; wildcards are not allowed."
+            "requested_tools": "Optional comma- or newline-separated exact tool names from the server tool configuration. They are not auto-discovered or validated here. Leave blank to use the complete server-approved profile. This can only restrict access; wildcards are not allowed."
           }
         }
       },
