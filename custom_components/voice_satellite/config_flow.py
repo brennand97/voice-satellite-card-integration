@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    ConfigSubentryFlow,
+    OptionsFlow,
+    SubentryFlowResult,
+)
+from homeassistant.core import callback
 
+from .profile_flow import ExternalConversationProfileFlow
 from .const import (
     CONF_CONVERSATION_PROFILE_ID,
     CONF_CONVERSATION_SERVICE_ENTRY_ID,
@@ -14,7 +25,10 @@ from .const import (
     CONF_EXTERNAL_TRANSPORT_URL,
     CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
     CONF_ENTRY_TYPE,
+    CONF_INITIAL_PROMPT,
+    CONF_INITIAL_VOICE,
     CONF_PROFILE_NAME,
+    CONF_REQUESTED_TOOLS,
     CONF_TOOL_PROFILE,
     DOMAIN,
     ENTRY_TYPE_SERVICE,
@@ -94,6 +108,16 @@ class VoiceSatelliteConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_TOOL_PROFILE, default=""): str,
             }
         )
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Expose profiles only on entity-free service entries."""
+        if config_entry.data.get(CONF_ENTRY_TYPE) != ENTRY_TYPE_SERVICE:
+            return {}
+        return {"conversation": ExternalConversationProfileFlow}
 
     @staticmethod
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
