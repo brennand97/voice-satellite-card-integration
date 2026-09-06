@@ -15,6 +15,9 @@ from .protocol import ProtocolError, SessionStart, normalize_event
 
 _LOGGER = logging.getLogger(__name__)
 _CLOSE_TIMEOUT = 3.0
+# The frontend does not report audio-playback completion to Home Assistant.
+# Leave room for a streamed reply before closing a silent capture session.
+_PERSISTENT_IDLE_TIMEOUT = 120.0
 
 
 @dataclass(slots=True)
@@ -24,6 +27,7 @@ class _Binding:
     msg_id: int
     audio_queue: asyncio.Queue[bytes] | None
     done: asyncio.Future[None]
+    terminal_reason: str | None = None
 
 
 class ExternalConversationRuntime:
@@ -46,6 +50,7 @@ class ExternalConversationRuntime:
         self._response_turn_id: str | None = None
         self._event_task: asyncio.Task[None] | None = None
         self._audio_task: asyncio.Task[None] | None = None
+        self._idle_task: asyncio.Task[None] | None = None
         self._closed = False
 
     @property
@@ -62,6 +67,8 @@ class ExternalConversationRuntime:
                 await self._start_turn_locked("audio")
                 self._audio_task = asyncio.create_task(self._forward_audio(binding), name="voice_satellite.external_audio")
             await binding.done
+            if binding.terminal_reason is not None:
+                await self.close(binding.terminal_reason)
         except Exception as err:
             self._fail_binding(binding, err)
             await self.close("audio_failure")
@@ -80,6 +87,8 @@ class ExternalConversationRuntime:
                 await self._client.end_turn(turn_id)
                 self._turn_id = self._turn_kind = None
             await binding.done
+            if binding.terminal_reason is not None:
+                await self.close(binding.terminal_reason)
         except Exception as err:
             self._fail_binding(binding, err)
             await self.close("text_failure")
@@ -92,6 +101,7 @@ class ExternalConversationRuntime:
                 return
             binding = self._binding
             self._binding = None
+            self._cancel_idle_timer()
             if self._audio_task is not None:
                 self._audio_task.cancel()
                 self._audio_task = None
@@ -112,6 +122,7 @@ class ExternalConversationRuntime:
         async with self._lock:
             binding = self._binding
             self._binding = None
+            self._cancel_idle_timer()
             if self._audio_task:
                 self._audio_task.cancel()
             if self._client:
@@ -161,6 +172,7 @@ class ExternalConversationRuntime:
             self._event_task = asyncio.create_task(self._read_events(), name="voice_satellite.external_events")
 
     async def _start_turn_locked(self, kind: str) -> str:
+        self._cancel_idle_timer()
         assert self._client is not None
         turn_id = str(uuid.uuid4())
         await self._client.start_turn(turn_id, kind)
@@ -181,6 +193,12 @@ class ExternalConversationRuntime:
                         return
                     if not chunk:
                         await self._end_open_turn_locked()
+                        # The frontend only enqueues this marker when its
+                        # subscription stops (including Kiosk stop), so this
+                        # is a terminal client action rather than turn-end.
+                        binding.terminal_reason = "client_stopped"
+                        if not binding.done.done():
+                            binding.done.set_result(None)
                         return
                     if self._turn_id is None or self._turn_kind != "audio":
                         # A text run displaced capture; never leak PCM across modalities.
@@ -212,6 +230,8 @@ class ExternalConversationRuntime:
 
     async def _handle_event_locked(self, event: dict[str, Any]) -> None:
         event_type = event["type"]
+        if event_type in {"user.speech_started", "assistant.response_started"}:
+            self._cancel_idle_timer()
         if event_type == "assistant.response_started":
             self._response_id, self._response_turn_id = event["response_id"], event["turn_id"]
             # The server permits provider VAD to finish an audio turn. Create
@@ -233,10 +253,39 @@ class ExternalConversationRuntime:
         if event_type in {"assistant.interrupted", "assistant.response_finished"}:
             if response_id == self._response_id:
                 self._response_id = self._response_turn_id = None
-            if binding and not binding.done.done() and event_type == "assistant.response_finished":
-                binding.done.set_result(None)
+            # Response completion is not a transport/binding completion. Keep
+            # forwarding native PCM through the speculative audio turn so the
+            # provider can detect a follow-up or a real barge-in.
+            if event_type == "assistant.response_finished" and binding is not None:
+                self._arm_idle_timer(binding)
         elif event_type in {"session.finished", "error"} and binding and not binding.done.done():
             binding.done.set_result(None)
+
+    def _cancel_idle_timer(self) -> None:
+        if self._idle_task is not None:
+            self._idle_task.cancel()
+            self._idle_task = None
+
+    def _arm_idle_timer(self, binding: _Binding) -> None:
+        self._cancel_idle_timer()
+        self._idle_task = asyncio.create_task(
+            self._expire_idle_binding(binding), name="voice_satellite.external_idle"
+        )
+
+    async def _expire_idle_binding(self, binding: _Binding) -> None:
+        try:
+            await asyncio.sleep(_PERSISTENT_IDLE_TIMEOUT)
+            async with self._lock:
+                if self._binding is not binding or binding.done.done() or self._response_id:
+                    return
+                binding.terminal_reason = "idle_timeout"
+                try:
+                    binding.connection.send_event(binding.msg_id, {"type": "run-end", "data": {}})
+                except Exception:
+                    pass
+                binding.done.set_result(None)
+        except asyncio.CancelledError:
+            raise
 
     def _fail_binding(self, binding: _Binding, err: Exception) -> None:
         _LOGGER.warning("External transport failed for binding: %s", err)

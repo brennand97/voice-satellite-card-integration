@@ -127,7 +127,10 @@ def normalize_event(event: dict[str, Any]) -> dict[str, Any] | None:
     if event_type == "assistant.interrupted":
         return {"type": "external-interrupted", "data": {"external": meta} if meta else {}}
     if event_type == "assistant.response_finished":
-        return {"type": "run-end", "data": {"external": meta}}
+        # A persistent external conversation remains capture-ready after the
+        # provider finishes generation. ``run-end`` would unsubscribe the
+        # native Kiosk PCM sender and make barge-in/follow-up impossible.
+        return {"type": "external-response-finished", "data": {"external": meta}}
     if event_type == "session.finished":
         return {"type": "run-end", "data": {}}
     if event_type == "error":

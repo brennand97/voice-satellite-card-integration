@@ -566,6 +566,16 @@ export function onTTSComplete(session, playbackFailed) {
     return;
   }
 
+  // External Transport keeps its native PCM stream open between turns.
+  // Do not execute normal end-of-run cleanup after playback: that would
+  // unsubscribe Kiosk capture and prevent provider-side VAD/barge-in.
+  if (session._externalPersistentTurn) {
+    session.logger.log('pipeline', 'External response complete - keeping persistent audio turn ready');
+    setState(session, State.STT);
+    session.ui.showBlurOverlay(BlurReason.PIPELINE);
+    return;
+  }
+
   // Show is active: bubble + rich media stay on screen until dismissed.
   // ShowManager arms stop word + duration timer; cleanup runs from dismiss().
   if (session.show?.active) {
@@ -753,6 +763,7 @@ export function handlePipelineMessage(session, message) {
     // the normal pipeline before streaming playback has completed.
     case 'external-audio-start':
       if (!eventData.external?.response_id || eventData.external.response_id !== session._externalResponseId) break;
+      session._externalPersistentTurn = true;
       setState(session, State.TTS);
       session.tts.play(eventData.url, false);
       break;
@@ -760,6 +771,13 @@ export function handlePipelineMessage(session, message) {
     // External Transport reports provider-side barge-in separately from HA
     // pipeline events. Stop native/browser playback immediately; the next
     // transcript or response event drives the usual state machine.
+    case 'external-response-finished':
+      if (!eventData.external?.response_id || eventData.external.response_id !== session._externalResponseId) break;
+      // Audio completion invokes onTTSComplete, which preserves the live
+      // external PCM turn. Text-only responses need the same ready state now.
+      session._externalPersistentTurn = true;
+      if (!session.tts.isPlaying) setState(session, State.STT);
+      break;
     case 'external-interrupted':
       if (!eventData.external?.response_id || eventData.external.response_id !== session._externalResponseId) break;
       session._externalResponseId = null;
