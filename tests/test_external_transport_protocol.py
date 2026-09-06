@@ -82,14 +82,15 @@ class ProtocolTests(unittest.TestCase):
     def test_tool_events_show_only_the_name_and_preserve_unrendered_payloads(self) -> None:
         started = protocol.normalize_event(protocol.validate_event({
             "type": "assistant.tool_call_started", "session_id": "s1", "turn_id": "t1", "response_id": "r1",
-            "tool_name": "homeassistant__GetLiveContext", "arguments": {"area": "Kitchen"},
+            "tool_call_id": "call-1", "tool_name": "homeassistant__GetLiveContext", "arguments": {"area": "Kitchen"},
         }, "s1"))
         self.assertEqual(started["type"], "intent-progress")
         self.assertEqual(started["data"]["chat_log_delta"]["tool_calls"][0]["tool_name"], "homeassistant__GetLiveContext")
         self.assertEqual(started["data"]["external"]["arguments"], {"area": "Kitchen"})
+        self.assertEqual(started["data"]["external"]["tool_call_id"], "call-1")
         finished = protocol.normalize_event(protocol.validate_event({
             "type": "assistant.tool_call_finished", "session_id": "s1", "turn_id": "t1", "response_id": "r1",
-            "tool_name": "homeassistant__GetLiveContext", "arguments": {},
+            "tool_call_id": "call-1", "tool_name": "homeassistant__GetLiveContext", "arguments": {},
             "result": [{"type": "text", "text": "private result"}], "is_error": False,
         }, "s1"))
         self.assertEqual(finished["type"], "external-tool-finished")
@@ -257,6 +258,36 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(task.done())
             self.assertIn({"type": "external-vad-start", "data": {"external": {"turn_id": "t2"}}}, connection.events)
             await queue.put(b"")
+            await asyncio.wait_for(task, 1)
+        finally:
+            runtime_module.ExternalTransportClient = original_client
+
+    async def test_tool_lifecycle_after_preamble_finish_is_not_response_fenced(self) -> None:
+        original_client = runtime_module.ExternalTransportClient
+        runtime_module.ExternalTransportClient = FakeRuntimeClient
+        FakeRuntimeClient.instances.clear()
+        try:
+            connection = FakeRuntimeConnection()
+            runtime = runtime_module.ExternalConversationRuntime(
+                http=object(), url="wss://voice.example/transport/v1", token="test",
+                verify_tls=True, ready_timeout=1, session_id="s1",
+                satellite_entity_id="assist_satellite.kitchen", satellite_name="Kitchen",
+            )
+            task = asyncio.create_task(
+                runtime.attach_text("check home", connection, 1, conversation_id=None)
+            )
+            while not FakeRuntimeClient.instances:
+                await asyncio.sleep(0)
+            client = FakeRuntimeClient.instances[0]
+            await client.events_queue.put({"type": "assistant.response_started", "turn_id": "t1", "response_id": "r1"})
+            await client.events_queue.put({"type": "assistant.response_finished", "turn_id": "t1", "response_id": "r1"})
+            await client.events_queue.put({"type": "assistant.tool_call_started", "turn_id": "t1", "response_id": "r1", "tool_call_id": "call-1", "tool_name": "home_context", "arguments": {}})
+            await client.events_queue.put({"type": "assistant.tool_call_finished", "turn_id": "t1", "response_id": "r1", "tool_call_id": "call-1", "tool_name": "home_context", "arguments": {}, "result": [], "is_error": False})
+            await asyncio.sleep(0)
+            events = [event["type"] for event in connection.events]
+            self.assertIn("intent-progress", events)
+            self.assertIn("external-tool-finished", events)
+            await runtime.close("test_finished")
             await asyncio.wait_for(task, 1)
         finally:
             runtime_module.ExternalTransportClient = original_client

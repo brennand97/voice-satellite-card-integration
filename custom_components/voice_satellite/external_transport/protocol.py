@@ -94,12 +94,17 @@ def validate_event(message: object, session_id: str) -> dict[str, Any]:
         if event.get("source") not in {"provider_audio", "client_text"}:
             raise ProtocolError("transcript has an invalid source")
     if event["type"] in {"assistant.tool_call_started", "assistant.tool_call_finished"}:
+        _required(event, "tool_call_id")
         _required(event, "tool_name")
         if not isinstance(event.get("arguments"), dict):
             raise ProtocolError(f"{event['type']} requires object arguments")
+        if event.get("arguments_truncated", False) is not False and not isinstance(event.get("arguments_truncated"), bool):
+            raise ProtocolError("tool arguments_truncated must be boolean")
         if event["type"] == "assistant.tool_call_finished":
             if not isinstance(event.get("result"), list):
                 raise ProtocolError("assistant.tool_call_finished requires list result")
+            if event.get("result_truncated", False) is not False and not isinstance(event.get("result_truncated"), bool):
+                raise ProtocolError("tool result_truncated must be boolean")
             if not isinstance(event.get("is_error"), bool):
                 raise ProtocolError("assistant.tool_call_finished requires boolean is_error")
     if event["type"] == "assistant.audio":
@@ -114,7 +119,7 @@ def validate_event(message: object, session_id: str) -> dict[str, Any]:
 def normalize_event(event: dict[str, Any]) -> dict[str, Any] | None:
     """Map validated protocol events onto existing card pipeline events."""
     event_type = event["type"]
-    meta = {key: event[key] for key in ("turn_id", "response_id") if key in event}
+    meta = {key: event[key] for key in ("turn_id", "response_id", "tool_call_id") if key in event}
     if event_type == "user.speech_started":
         # Keep this separate from HA's stt-vad-start: the external provider
         # has no preceding HA stt-start event to arm the stuck-turn watchdog.
@@ -137,12 +142,12 @@ def normalize_event(event: dict[str, Any]) -> dict[str, Any] | None:
     if event_type == "assistant.tool_call_started":
         # Reuse the existing tool-call indicator. Arguments remain in external
         # metadata for future consumers but are deliberately not rendered.
-        external = {**meta, "arguments": event["arguments"]}
+        external = {**meta, "arguments": event["arguments"], "arguments_truncated": event.get("arguments_truncated", False)}
         return {"type": "intent-progress", "data": {"chat_log_delta": {"tool_calls": [{"tool_name": _required(event, "tool_name")}]}, "external": external}}
     if event_type == "assistant.tool_call_finished":
         # Preserve provider-neutral result metadata without routing it through
         # chat_log_delta.tool_result, whose existing handlers may render it.
-        external = {**meta, "tool_name": _required(event, "tool_name"), "arguments": event["arguments"], "result": event["result"], "is_error": event["is_error"]}
+        external = {**meta, "tool_name": _required(event, "tool_name"), "arguments": event["arguments"], "result": event["result"], "arguments_truncated": event.get("arguments_truncated", False), "result_truncated": event.get("result_truncated", False), "is_error": event["is_error"]}
         return {"type": "external-tool-finished", "data": {"external": external}}
     if event_type == "assistant.audio":
         return {"type": "external-audio-start", "data": {"url": _required(event, "url"), "content_type": _required(event, "content_type"), "external": meta}}

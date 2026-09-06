@@ -48,6 +48,11 @@ class ExternalConversationRuntime:
         self._turn_kind: str | None = None
         self._response_id: str | None = None
         self._response_turn_id: str | None = None
+        self._last_response_id: str | None = None
+        self._last_response_turn_id: str | None = None
+        # Tool lifecycle can outlive the provider response that requested it.
+        # Keep it independently fenced by call ID rather than audio ownership.
+        self._tool_operations: dict[str, tuple[str, str]] = {}
         self._event_task: asyncio.Task[None] | None = None
         self._audio_task: asyncio.Task[None] | None = None
         self._closed = False
@@ -110,6 +115,8 @@ class ExternalConversationRuntime:
                 except (ProtocolError, TimeoutError, Exception):
                     pass
                 self._response_id = self._response_turn_id = None
+            self._last_response_id = self._last_response_turn_id = None
+            self._tool_operations.clear()
             if not binding.done.done():
                 binding.done.set_result(None)
 
@@ -231,6 +238,7 @@ class ExternalConversationRuntime:
         event_type = event["type"]
         if event_type == "assistant.response_started":
             self._response_id, self._response_turn_id = event["response_id"], event["turn_id"]
+            self._last_response_id = self._last_response_turn_id = None
             # The server permits provider VAD to finish an audio turn. Create
             # the next capture turn atomically before forwarding more PCM.
             if self._turn_kind == "audio":
@@ -238,7 +246,23 @@ class ExternalConversationRuntime:
                 if self._binding and self._binding.audio_queue is not None:
                     await self._start_turn_locked("audio")
         response_id = event.get("response_id")
-        if response_id and event_type != "assistant.response_started" and response_id != self._response_id:
+        if event_type.startswith("assistant.tool_call_"):
+            tool_call_id = event.get("tool_call_id")
+            if not isinstance(tool_call_id, str):
+                return
+            if event_type == "assistant.tool_call_started":
+                turn_id = event.get("turn_id")
+                if not isinstance(turn_id, str) or not isinstance(response_id, str):
+                    return
+                # A function call may arrive after a spoken preamble's
+                # response_finished. It is still tied to the most recent
+                # completed response, but never to an older interrupted turn.
+                if response_id not in {self._response_id, self._last_response_id}:
+                    return
+                self._tool_operations[tool_call_id] = (turn_id, response_id)
+            elif tool_call_id not in self._tool_operations:
+                return
+        elif response_id and event_type != "assistant.response_started" and response_id != self._response_id:
             return  # fenced late event from an interrupted/replaced response
         pipeline_event = normalize_event(event)
         binding = self._binding
@@ -247,8 +271,13 @@ class ExternalConversationRuntime:
                 binding.connection.send_event(binding.msg_id, pipeline_event)
             except Exception:
                 pass
-        if event_type in {"assistant.interrupted", "assistant.response_finished"}:
+        if event_type == "assistant.tool_call_finished":
+            self._tool_operations.pop(event["tool_call_id"], None)
+        elif event_type in {"assistant.interrupted", "assistant.response_finished"}:
             if response_id == self._response_id:
+                if event_type == "assistant.response_finished":
+                    self._last_response_id = self._response_id
+                    self._last_response_turn_id = self._response_turn_id
                 self._response_id = self._response_turn_id = None
             # Response completion is not a transport/binding completion. Keep
             # forwarding native PCM through the speculative audio turn so the
