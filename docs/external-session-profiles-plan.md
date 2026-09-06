@@ -223,7 +223,7 @@ ParsedSessionStart
 
 Suggested responsibilities:
 
-- `SessionContext`: client kind/ID, optional satellite entity ID, optional HA device ID, conversation ID, and audit correlation IDs.
+- `SessionContext`: client kind/ID, conversation ID, optional immutable attachment context, and audit correlation IDs.
 - `SessionProfileDefinition`: prompt/voice defaults, provider references, trusted allow patterns, and contextual-tool rules loaded at startup.
 - `SessionProfileResolver`: combines deployment default, named profile, and allowed per-session prompt/voice/exact-tool overrides. It performs no network I/O.
 - `ToolNamePattern`: one canonical exact-or-terminal-wildcard parser/matcher reused by provider and profile policies.
@@ -236,6 +236,46 @@ Suggested responsibilities:
 The tool registry dispatches only `CompiledToolBinding` objects. At invocation it validates model arguments against the transformed public schema, injects trusted context arguments into a separate provider argument object, and then calls the provider. Never mutate model arguments in place.
 
 All profile/pattern/context errors are compilation failures before OpenAI connects. This avoids partial sessions and keeps policy logic out of realtime frame handling.
+
+## Optional attachment model
+
+Model the provider conversation independently from where it is presented:
+
+```text
+ExternalConversationDefinition (connection + profile)
+  -> ExternalConversationSession (provider state + turns + compiled tools)
+       -> optional ConversationAttachment
+```
+
+A `ConversationAttachment` is a bounded capability/context object, not a separate kind of agent. Initial attachment types can be:
+
+- `None`: generic HA `ConversationEntity`; text input/output, no device context.
+- `PhysicalSatelliteAttachment`: live PCM input, signed/native audio output, Satellite event presentation, and trusted Satellite entity/device identity.
+- `AdminPanelAttachment` (optional later): browser text and optional browser audio for Prompt Lab experiments, but no HA device context.
+
+The shared session factory derives its plan from the profile plus attachment capabilities:
+
+```text
+input_modalities
+output_modalities
+satellite_entity_id?
+home_assistant_device_id?
+presentation_capabilities
+tool_context
+```
+
+A generic realtime audio session is therefore valid without a physical Satellite: an admin panel attachment may request audio and play it locally. Conversely, attaching a physical Satellite adds native audio routing and device-scoped tool context without changing the conversation/profile abstraction.
+
+Attachment context must be fixed before compiling/opening a provider session. A transport binding may disconnect and reconnect for the same declared physical attachment, as the current persistent runtime does, but changing between unattached/panel/physical context requires a new provider session. This prevents a live session from silently gaining tools or changing device authority.
+
+Allow at most one controlling attachment (microphone/input owner) per provider session. Read-only observers can be considered later, but must never become implicit audio or device-context owners.
+
+`ConversationEntity` and `ExternalConversationRuntime` become thin HA adapters over this shared session service:
+
+- `ConversationEntity` opens an unattached text-only session and translates events to HA `ChatLog`.
+- `ExternalConversationRuntime` opens the same session model with a `PhysicalSatelliteAttachment` and translates PCM/presentation events.
+
+Neither adapter owns profile resolution, wildcard expansion, tool schema transformation, or provider construction.
 
 ## Context-bound Voice Satellite tools
 
