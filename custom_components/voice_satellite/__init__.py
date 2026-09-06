@@ -13,6 +13,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
+from types import MappingProxyType
 
 import voluptuous as vol
 
@@ -564,7 +565,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             CONF_EXTERNAL_TRANSPORT_VERIFY_TLS: bool(options.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True)),
             CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT: options.get(CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5),
         },
-        discovery_keys={}, domain=DOMAIN, minor_version=1, options={}, source=SOURCE_IMPORT,
+        discovery_keys=MappingProxyType({}), domain=DOMAIN, minor_version=1, options={}, source=SOURCE_IMPORT,
         subentries_data=({"subentry_type": "conversation", "title": f"{entry.title} External conversation", "unique_id": None, "data": {}},),
         title=f"{entry.title} External Conversation Service", unique_id=None, version=2,
     )
