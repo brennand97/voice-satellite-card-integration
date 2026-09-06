@@ -1643,6 +1643,17 @@ export class WakeWordManager {
     // Disable stop model first
     this.disableStopModel();
 
+    // A persistent External Transport run has no HA Assist pipeline to
+    // restart. Its controller owns the terminal path: it stops playback,
+    // unsubscribes the native PCM relay, and sends session.cancel upstream.
+    // Keep this before generic interaction handling so an enabled stop-word
+    // classifier has identical terminal semantics for native and external TTS.
+    if (session._externalSession?.isActive()) {
+      this._log.log('stop-word', 'Terminating External Transport session');
+      session._externalSession.onExplicitStop('stop_word');
+      return;
+    }
+
     // 1. Timer alert - highest priority
     if (session.timer.alertActive) {
       this._log.log('stop-word', 'Dismissing timer alert');

@@ -101,6 +101,15 @@ test('stale interruptions cannot stop newer playback', () => {
   assert.deepEqual(h.calls.filter(([name]) => name === 'stop'), [['stop', 'response-1', 'replaced']]);
 });
 
+test('active state is exposed only while an External run can be stopped', () => {
+  const h = harness();
+  assert.equal(h.controller.isActive(), false);
+  h.controller.onRunStart();
+  assert.equal(h.controller.isActive(), true);
+  h.controller.onExplicitStop('stop_word');
+  assert.equal(h.controller.isActive(), false);
+});
+
 test('explicit stop is terminal and cancels playback exactly once', () => {
   const h = harness();
   activePlayback(h);

@@ -39,6 +39,14 @@ export class ExternalSessionController {
   get providerResponseId() { return this._providerResponseId; }
   get playbackResponseId() { return this._playbackResponseId; }
   ownsPlayback() { return this._playbackResponseId !== null; }
+  isActive() {
+    return ![
+      ExternalState.IDLE,
+      ExternalState.TERMINATING,
+      ExternalState.TERMINATED,
+      ExternalState.FAILED,
+    ].includes(this._state);
+  }
 
   _transition(state) { this._state = state; }
   _clearFollowupTimer() {
