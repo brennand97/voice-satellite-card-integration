@@ -79,6 +79,22 @@ class ProtocolTests(unittest.TestCase):
         final = protocol.normalize_event({"type": "assistant.text.final", "text": "Done"})
         self.assertEqual(final["type"], "intent-end")
 
+    def test_tool_events_show_only_the_name_and_preserve_unrendered_payloads(self) -> None:
+        started = protocol.normalize_event(protocol.validate_event({
+            "type": "assistant.tool_call_started", "session_id": "s1", "turn_id": "t1", "response_id": "r1",
+            "tool_name": "homeassistant__GetLiveContext", "arguments": {"area": "Kitchen"},
+        }, "s1"))
+        self.assertEqual(started["type"], "intent-progress")
+        self.assertEqual(started["data"]["chat_log_delta"]["tool_calls"][0]["tool_name"], "homeassistant__GetLiveContext")
+        self.assertEqual(started["data"]["external"]["arguments"], {"area": "Kitchen"})
+        finished = protocol.normalize_event(protocol.validate_event({
+            "type": "assistant.tool_call_finished", "session_id": "s1", "turn_id": "t1", "response_id": "r1",
+            "tool_name": "homeassistant__GetLiveContext", "arguments": {},
+            "result": [{"type": "text", "text": "private result"}], "is_error": False,
+        }, "s1"))
+        self.assertEqual(finished["type"], "external-tool-finished")
+        self.assertEqual(finished["data"]["external"]["result"][0]["text"], "private result")
+
     def test_interruption_maps_to_a_provider_neutral_card_event(self) -> None:
         event = protocol.normalize_event({"type": "assistant.interrupted", "audio_id": "a1"})
         self.assertEqual(event, {"type": "external-interrupted", "data": {}})

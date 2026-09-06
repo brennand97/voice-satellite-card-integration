@@ -83,6 +83,7 @@ def validate_event(message: object, session_id: str) -> dict[str, Any]:
         "user.speech_started", "user.transcript.partial", "user.transcript.final",
         "assistant.response_started", "assistant.text.delta", "assistant.text.final",
         "assistant.audio", "assistant.interrupted", "assistant.response_finished",
+        "assistant.tool_call_started", "assistant.tool_call_finished",
     }
     if event["type"] in correlated:
         _required(event, "turn_id")
@@ -92,6 +93,15 @@ def validate_event(message: object, session_id: str) -> dict[str, Any]:
         _required(event, "text")
         if event.get("source") not in {"provider_audio", "client_text"}:
             raise ProtocolError("transcript has an invalid source")
+    if event["type"] in {"assistant.tool_call_started", "assistant.tool_call_finished"}:
+        _required(event, "tool_name")
+        if not isinstance(event.get("arguments"), dict):
+            raise ProtocolError(f"{event['type']} requires object arguments")
+        if event["type"] == "assistant.tool_call_finished":
+            if not isinstance(event.get("result"), list):
+                raise ProtocolError("assistant.tool_call_finished requires list result")
+            if not isinstance(event.get("is_error"), bool):
+                raise ProtocolError("assistant.tool_call_finished requires boolean is_error")
     if event["type"] == "assistant.audio":
         url = _required(event, "url")
         if urlparse(url).scheme not in {"https", "http"}:
@@ -124,6 +134,16 @@ def normalize_event(event: dict[str, Any]) -> dict[str, Any] | None:
         return {"type": "intent-progress", "data": {"chat_log_delta": {"content": _required(event, "text")}, "external": meta}}
     if event_type == "assistant.text.final":
         return {"type": "intent-end", "data": {"intent_output": {"response": {"response_type": "action_done", "speech": {"plain": {"speech": _required(event, "text")}}}}, "external": meta}}
+    if event_type == "assistant.tool_call_started":
+        # Reuse the existing tool-call indicator. Arguments remain in external
+        # metadata for future consumers but are deliberately not rendered.
+        external = {**meta, "arguments": event["arguments"]}
+        return {"type": "intent-progress", "data": {"chat_log_delta": {"tool_calls": [{"tool_name": _required(event, "tool_name")}]}, "external": external}}
+    if event_type == "assistant.tool_call_finished":
+        # Preserve provider-neutral result metadata without routing it through
+        # chat_log_delta.tool_result, whose existing handlers may render it.
+        external = {**meta, "tool_name": _required(event, "tool_name"), "arguments": event["arguments"], "result": event["result"], "is_error": event["is_error"]}
+        return {"type": "external-tool-finished", "data": {"external": external}}
     if event_type == "assistant.audio":
         return {"type": "external-audio-start", "data": {"url": _required(event, "url"), "content_type": _required(event, "content_type"), "external": meta}}
     if event_type == "assistant.interrupted":
