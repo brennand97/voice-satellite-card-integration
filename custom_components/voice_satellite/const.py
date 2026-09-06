@@ -3,6 +3,11 @@
 from typing import Final
 
 DOMAIN: Final[str] = "voice_satellite"
+ENTRY_TYPE_SERVICE: Final[str] = "external_conversation_service"
+CONF_ENTRY_TYPE: Final[str] = "entry_type"
+CONF_PROFILE_NAME: Final[str] = "profile_name"
+CONF_TOOL_PROFILE: Final[str] = "tool_profile"
+CONF_REQUESTED_TOOLS: Final[str] = "requested_tools"
 
 # External Transport configuration. Values live in ConfigEntry.options and
 # must never be surfaced as entity state attributes or frontend settings.

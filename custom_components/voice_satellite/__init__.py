@@ -22,7 +22,7 @@ from homeassistant.const import Platform
 from homeassistant.core import Context, HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN
+from .const import CONF_ENTRY_TYPE, DOMAIN, ENTRY_TYPE_SERVICE
 from .diagnostics import register as register_diagnostics
 from .media_proxy import async_setup_media_proxy
 from .frontend import (
@@ -548,13 +548,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.warning("Failed to verify frontend resource: %s", err)
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    platforms = [Platform.CONVERSATION] if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE else PLATFORMS
+    await hass.config_entries.async_forward_entry_setups(entry, platforms)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    result = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    platforms = [Platform.CONVERSATION] if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE else PLATFORMS
+    result = await hass.config_entries.async_unload_platforms(entry, platforms)
     if result:
         hass.data[DOMAIN].pop(entry.entry_id, None)
         hass.data[DOMAIN].pop(f"{entry.entry_id}_media_player", None)

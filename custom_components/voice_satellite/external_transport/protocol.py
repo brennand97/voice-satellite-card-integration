@@ -27,15 +27,30 @@ class SessionStart:
     satellite_name: str
     conversation_id: str | None = None
     wake_word: str | None = None
+    client_kind: str = "satellite"
+    tool_profile: str | None = None
+    requested_tools: tuple[str, ...] | None = None
+    device_id: str | None = None
+    input_modalities: tuple[str, ...] = ("audio", "text")
+    output_modalities: tuple[str, ...] = ("audio", "text")
 
     def as_message(self) -> dict[str, Any]:
-        return {
+        message: dict[str, Any] = {
             "type": "session.start", "protocol_version": PROTOCOL_VERSION,
             "session_id": self.session_id,
-            "satellite": {"entity_id": self.satellite_entity_id, "name": self.satellite_name},
             "audio": {"encoding": PCM16LE, "sample_rate": SAMPLE_RATE, "channels": CHANNELS},
-            "conversation": {"id": self.conversation_id, "wake_word": self.wake_word},
+            "conversation": {
+                "id": self.conversation_id, "wake_word": self.wake_word,
+                "profile": self.tool_profile, "requested_tools": list(self.requested_tools) if self.requested_tools else None,
+                "device_id": self.device_id, "input_modalities": list(self.input_modalities),
+                "output_modalities": list(self.output_modalities),
+            },
         }
+        if self.client_kind == "satellite":
+            message["satellite"] = {"entity_id": self.satellite_entity_id, "name": self.satellite_name}
+        else:
+            message["client"] = {"id": self.satellite_entity_id, "kind": self.client_kind}
+        return message
 
 
 @dataclass(frozen=True, slots=True)

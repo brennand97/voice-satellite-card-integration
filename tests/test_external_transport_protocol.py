@@ -58,6 +58,17 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(message["audio"], {"encoding": "pcm_s16le", "sample_rate": 16000, "channels": 1})
         self.assertEqual(message["conversation"]["id"], "conversation")
 
+    def test_generic_conversation_start_has_no_satellite_or_audio(self) -> None:
+        message = protocol.SessionStart(
+            "id", "conversation.reginold", "Reginold", "conversation", None,
+            client_kind="ha_conversation", tool_profile="home-read-only",
+            input_modalities=("text",), output_modalities=("text",),
+        ).as_message()
+        self.assertNotIn("satellite", message)
+        self.assertEqual(message["client"]["kind"], "ha_conversation")
+        self.assertIsNone(message["conversation"]["device_id"])
+        self.assertEqual(message["conversation"]["output_modalities"], ["text"])
+
     def test_ready_requires_matching_session(self) -> None:
         with self.assertRaises(protocol.ProtocolError):
             protocol.validate_ready({"type": "session.ready", "session_id": "other"}, "id")
