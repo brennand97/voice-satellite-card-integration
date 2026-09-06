@@ -17,7 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 _CLOSE_TIMEOUT = 3.0
 # The frontend does not report audio-playback completion to Home Assistant.
 # Leave room for a streamed reply before closing a silent capture session.
-_PERSISTENT_IDLE_TIMEOUT = 120.0
+_PERSISTENT_IDLE_TIMEOUT = 60.0
 
 
 @dataclass(slots=True)

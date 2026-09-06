@@ -90,6 +90,10 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(event["type"], "external-response-finished")
         self.assertNotEqual(event["type"], "run-end")
 
+    def test_external_speech_arms_a_distinct_watchdog_event(self) -> None:
+        event = protocol.normalize_event({"type": "user.speech_started", "turn_id": "t1"})
+        self.assertEqual(event["type"], "external-vad-start")
+
     def test_audio_requires_url(self) -> None:
         with self.assertRaises(protocol.ProtocolError):
             protocol.normalize_event({"type": "assistant.audio"})

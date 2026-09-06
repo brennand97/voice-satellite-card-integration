@@ -106,7 +106,9 @@ def normalize_event(event: dict[str, Any]) -> dict[str, Any] | None:
     event_type = event["type"]
     meta = {key: event[key] for key in ("turn_id", "response_id") if key in event}
     if event_type == "user.speech_started":
-        return {"type": "stt-vad-start", "data": {"external": meta}}
+        # Keep this separate from HA's stt-vad-start: the external provider
+        # has no preceding HA stt-start event to arm the stuck-turn watchdog.
+        return {"type": "external-vad-start", "data": {"external": meta}}
     if event_type == "user.transcript.partial":
         return None
     if event_type == "user.transcript.final":

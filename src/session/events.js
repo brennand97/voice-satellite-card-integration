@@ -742,6 +742,15 @@ export function handlePipelineMessage(session, message) {
       session.pipeline.armVadWatchdog();
       break;
     case 'stt-vad-start': session.logger.log('event', 'VAD: speech started'); break;
+    // External providers report genuine speech directly. There is no HA
+    // stt-start before it, so arm the existing bounded recovery watchdog
+    // here; otherwise a provider that never completes a turn leaves the
+    // listening bar visible indefinitely.
+    case 'external-vad-start':
+      session.logger.log('event', 'External VAD: speech started');
+      setState(session, State.STT);
+      session.pipeline.armVadWatchdog();
+      break;
     case 'stt-vad-end':
       session.logger.log('event', 'VAD: speech ended');
       session.pipeline.armVadWatchdog();
