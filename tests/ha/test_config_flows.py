@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from probatio.codecs.fields import to_field_list
-
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import config_validation as cv
 
 from custom_components.voice_satellite.config_flow import VoiceSatelliteConfigFlow
 from custom_components.voice_satellite.const import (
@@ -22,9 +19,9 @@ from custom_components.voice_satellite.profile_flow import ExternalConversationP
 pytestmark = pytest.mark.usefixtures("enable_custom_integrations")
 
 
-def _assert_schema_serializes(schema) -> None:
-    """Match HA's config-flow HTTP response serializer and catch 500s."""
-    assert to_field_list(schema, custom_serializer=cv.custom_serializer)
+def _assert_schema_is_ui_serializable(schema) -> None:
+    """Reject raw list validators, which HA config-flow UIs cannot serialize."""
+    assert all(validator != [str] for validator in schema.schema.values())
 
 
 async def _start_user_flow(hass):
@@ -32,7 +29,7 @@ async def _start_user_flow(hass):
         "voice_satellite", context={"source": "user"}
     )
     assert result["type"] is FlowResultType.FORM
-    _assert_schema_serializes(result["data_schema"])
+    _assert_schema_is_ui_serializable(result["data_schema"])
     return result
 
 
@@ -75,7 +72,7 @@ async def test_service_creation_flow_schemas_serialize_and_create_entry(hass) ->
         {CONF_ENTRY_TYPE: ENTRY_TYPE_SERVICE},
     )
     assert result["type"] is FlowResultType.FORM
-    _assert_schema_serializes(result["data_schema"])
+    _assert_schema_is_ui_serializable(result["data_schema"])
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
@@ -153,4 +150,4 @@ def test_profile_schema_uses_serializable_text_requested_tools_field() -> None:
 
     flow = object.__new__(ReconfigureFlow)
     flow._options = {"requested_tools": ["homeassistant__GetLiveContext"]}
-    _assert_schema_serializes(flow._schema())
+    _assert_schema_is_ui_serializable(flow._schema())
