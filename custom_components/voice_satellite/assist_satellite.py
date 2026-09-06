@@ -48,10 +48,16 @@ except ImportError:
 
 
 from .const import (
+    CONF_CONVERSATION_PROFILE_ID,
+    CONF_CONVERSATION_SERVICE_ENTRY_ID,
     CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT,
     CONF_EXTERNAL_TRANSPORT_TOKEN,
     CONF_EXTERNAL_TRANSPORT_URL,
     CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
+    CONF_INITIAL_PROMPT,
+    CONF_INITIAL_VOICE,
+    CONF_REQUESTED_TOOLS,
+    CONF_TOOL_PROFILE,
     CONVERSATION_TRANSPORT_EXTERNAL,
     DOMAIN,
     EVENT_TIMER,
@@ -1421,20 +1427,41 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
                 await self._external_runtime.close("replacing_failed_runtime")
                 self._external_runtime = None
             options = self._entry.options
-            url = options.get(CONF_EXTERNAL_TRANSPORT_URL, "")
-            token = options.get(CONF_EXTERNAL_TRANSPORT_TOKEN, "")
+            connection = options
+            profile: dict[str, Any] = {}
+            service_entry_id = options.get(CONF_CONVERSATION_SERVICE_ENTRY_ID)
+            profile_id = options.get(CONF_CONVERSATION_PROFILE_ID)
+            if isinstance(service_entry_id, str) and isinstance(profile_id, str):
+                service_entry = self.hass.config_entries.async_get_entry(service_entry_id)
+                subentry = (
+                    service_entry.subentries.get(profile_id)
+                    if service_entry is not None
+                    else None
+                )
+                if service_entry is None or subentry is None or subentry.subentry_type != "conversation":
+                    _LOGGER.warning("External Conversation Service profile assignment is invalid")
+                    return None
+                connection = service_entry.data
+                profile = dict(subentry.data)
+            url = connection.get(CONF_EXTERNAL_TRANSPORT_URL, "")
+            token = connection.get(CONF_EXTERNAL_TRANSPORT_TOKEN, "")
             if not isinstance(url, str) or not url or not isinstance(token, str) or not token:
                 return None
             from homeassistant.helpers.aiohttp_client import async_get_clientsession
             try:
-                ready_timeout = float(options.get(CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5))
+                ready_timeout = float(connection.get(CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5))
             except (TypeError, ValueError):
                 ready_timeout = 5.0
             self._external_runtime = ExternalConversationRuntime(
-                http=async_get_clientsession(self.hass, verify_ssl=bool(options.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True))),
+                http=async_get_clientsession(self.hass, verify_ssl=bool(connection.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True))),
                 url=url, token=token, verify_tls=True, ready_timeout=ready_timeout,
                 session_id=str(uuid.uuid4()), satellite_entity_id=self.entity_id,
                 satellite_name=self._satellite_name,
+                device_id=self.registry_entry.device_id if self.registry_entry else None,
+                tool_profile=profile.get(CONF_TOOL_PROFILE),
+                requested_tools=tuple(profile[CONF_REQUESTED_TOOLS]) if isinstance(profile.get(CONF_REQUESTED_TOOLS), list) else None,
+                initial_prompt=profile.get(CONF_INITIAL_PROMPT),
+                initial_voice=profile.get(CONF_INITIAL_VOICE),
             )
             return self._external_runtime
 

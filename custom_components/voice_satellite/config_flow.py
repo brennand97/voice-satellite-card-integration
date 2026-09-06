@@ -7,6 +7,8 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 
 from .const import (
+    CONF_CONVERSATION_PROFILE_ID,
+    CONF_CONVERSATION_SERVICE_ENTRY_ID,
     CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT,
     CONF_EXTERNAL_TRANSPORT_TOKEN,
     CONF_EXTERNAL_TRANSPORT_URL,
@@ -108,7 +110,9 @@ class VoiceSatelliteOptionsFlow(OptionsFlow):
         if user_input is not None:
             url = str(user_input.get(CONF_EXTERNAL_TRANSPORT_URL, "")).strip()
             token = str(user_input.get(CONF_EXTERNAL_TRANSPORT_TOKEN, "")).strip()
-            if bool(url) != bool(token):
+            service_entry_id = str(user_input.get(CONF_CONVERSATION_SERVICE_ENTRY_ID, "")).strip()
+            profile_id = str(user_input.get(CONF_CONVERSATION_PROFILE_ID, "")).strip()
+            if bool(url) != bool(token) or bool(service_entry_id) != bool(profile_id):
                 return self.async_show_form(
                     step_id="init",
                     data_schema=self._schema(),
@@ -138,5 +142,13 @@ class VoiceSatelliteOptionsFlow(OptionsFlow):
                     CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT,
                     default=options.get(CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+                vol.Optional(
+                    CONF_CONVERSATION_SERVICE_ENTRY_ID,
+                    default=options.get(CONF_CONVERSATION_SERVICE_ENTRY_ID, ""),
+                ): str,
+                vol.Optional(
+                    CONF_CONVERSATION_PROFILE_ID,
+                    default=options.get(CONF_CONVERSATION_PROFILE_ID, ""),
+                ): str,
             }
         )

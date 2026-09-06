@@ -8,6 +8,10 @@ CONF_ENTRY_TYPE: Final[str] = "entry_type"
 CONF_PROFILE_NAME: Final[str] = "profile_name"
 CONF_TOOL_PROFILE: Final[str] = "tool_profile"
 CONF_REQUESTED_TOOLS: Final[str] = "requested_tools"
+CONF_CONVERSATION_SERVICE_ENTRY_ID: Final[str] = "conversation_service_entry_id"
+CONF_CONVERSATION_PROFILE_ID: Final[str] = "conversation_profile_id"
+CONF_INITIAL_PROMPT: Final[str] = "initial_prompt"
+CONF_INITIAL_VOICE: Final[str] = "initial_voice"
 
 # External Transport configuration. Values live in ConfigEntry.options and
 # must never be surfaced as entity state attributes or frontend settings.

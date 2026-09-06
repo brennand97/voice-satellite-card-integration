@@ -30,6 +30,8 @@ class SessionStart:
     client_kind: str = "satellite"
     tool_profile: str | None = None
     requested_tools: tuple[str, ...] | None = None
+    initial_prompt: str | None = None
+    initial_voice: str | None = None
     device_id: str | None = None
     input_modalities: tuple[str, ...] = ("audio", "text")
     output_modalities: tuple[str, ...] = ("audio", "text")
@@ -42,6 +44,7 @@ class SessionStart:
             "conversation": {
                 "id": self.conversation_id, "wake_word": self.wake_word,
                 "profile": self.tool_profile, "requested_tools": list(self.requested_tools) if self.requested_tools else None,
+                "initial_prompt": self.initial_prompt, "initial_voice": self.initial_voice,
                 "device_id": self.device_id, "input_modalities": list(self.input_modalities),
                 "output_modalities": list(self.output_modalities),
             },
