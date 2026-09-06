@@ -43,30 +43,17 @@ class VoiceSatelliteConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, str] | None = None
     ) -> ConfigFlowResult:
-        """Handle the initial step - user enters a name for the satellite."""
+        """Choose whether to add a physical Satellite or a shared service."""
         if user_input is not None:
             if user_input[CONF_ENTRY_TYPE] == ENTRY_TYPE_SERVICE:
                 return await self.async_step_external_service()
-            name = user_input["name"].strip()
-            if not name:
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=self._user_schema(),
-                    errors={"base": "invalid_name"},
-                )
-            await self.async_set_unique_id(name.lower().replace(" ", "_"))
-            self._abort_if_unique_id_configured()
-            return self.async_create_entry(title=name, data={"name": name})
-
-        return self.async_show_form(
-            step_id="user", data_schema=self._user_schema(), errors={}
-        )
+            return await self.async_step_satellite()
+        return self.async_show_form(step_id="user", data_schema=self._user_schema())
 
     @staticmethod
     def _user_schema() -> vol.Schema:
         return vol.Schema(
             {
-                vol.Required("name"): str,
                 vol.Required(CONF_ENTRY_TYPE, default="satellite"): vol.In(
                     {
                         "satellite": "Voice Satellite",
@@ -74,6 +61,25 @@ class VoiceSatelliteConfigFlow(ConfigFlow, domain=DOMAIN):
                     }
                 ),
             }
+        )
+
+    async def async_step_satellite(
+        self, user_input: dict[str, str] | None = None
+    ) -> ConfigFlowResult:
+        """Create a physical browser Voice Satellite entry."""
+        if user_input is not None:
+            name = user_input["name"].strip()
+            if not name:
+                return self.async_show_form(
+                    step_id="satellite",
+                    data_schema=vol.Schema({vol.Required("name"): str}),
+                    errors={"base": "invalid_name"},
+                )
+            await self.async_set_unique_id(name.lower().replace(" ", "_"))
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(title=name, data={"name": name})
+        return self.async_show_form(
+            step_id="satellite", data_schema=vol.Schema({vol.Required("name"): str})
         )
 
     async def async_step_external_service(

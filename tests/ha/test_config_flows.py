@@ -39,20 +39,29 @@ async def _start_user_flow(hass):
 async def test_satellite_creation_rejects_blank_and_duplicate_names(hass) -> None:
     result = await _start_user_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"name": "   ", CONF_ENTRY_TYPE: "satellite"}
+        result["flow_id"], {CONF_ENTRY_TYPE: "satellite"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "satellite"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "   "}
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_name"}
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"name": "Kitchen", CONF_ENTRY_TYPE: "satellite"}
+        result["flow_id"], {"name": "Kitchen"}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Kitchen"
 
     result = await _start_user_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"name": " kitchen ", CONF_ENTRY_TYPE: "satellite"}
+        result["flow_id"], {CONF_ENTRY_TYPE: "satellite"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": " kitchen "}
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
@@ -63,7 +72,7 @@ async def test_service_creation_flow_schemas_serialize_and_create_entry(hass) ->
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {"name": "Ignored for service", CONF_ENTRY_TYPE: ENTRY_TYPE_SERVICE},
+        {CONF_ENTRY_TYPE: ENTRY_TYPE_SERVICE},
     )
     assert result["type"] is FlowResultType.FORM
     _assert_schema_serializes(result["data_schema"])
@@ -88,7 +97,7 @@ async def test_service_creation_flow_schemas_serialize_and_create_entry(hass) ->
 async def test_service_creation_rejects_incomplete_credentials(hass) -> None:
     result = await _start_user_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"name": "", CONF_ENTRY_TYPE: ENTRY_TYPE_SERVICE}
+        result["flow_id"], {CONF_ENTRY_TYPE: ENTRY_TYPE_SERVICE}
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "external_service"

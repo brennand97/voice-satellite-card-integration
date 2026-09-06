@@ -2,11 +2,17 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add Voice Satellite (External Support)",
-        "description": "Create a browser Voice Satellite, or choose External Conversation Service to configure a shared External Transport connection.",
+        "title": "Add Voice Satellite",
+        "description": "Choose what to configure. External Conversation Service stores one shared External Transport connection; it is not a physical Satellite.",
         "data": {
-          "name": "Satellite name",
           "entry_type": "Configuration type"
+        }
+      },
+      "satellite": {
+        "title": "Voice Satellite",
+        "description": "Create a virtual Assist satellite for a browser tablet running Voice Satellite.",
+        "data": {
+          "name": "Satellite name"
         },
         "data_description": {
           "name": "A descriptive name for this tablet (e.g. Kitchen Tablet, Entrance Tablet)."
