@@ -63,6 +63,9 @@ class ServerCapabilities:
     streaming_audio_url: bool
     interruptions: bool
     conversation_continuation: bool
+    effective_profile: str | None = None
+    effective_tools: tuple[str, ...] = ()
+    effective_voice: str | None = None
 
 
 def validate_server_message(message: object) -> dict[str, Any]:
@@ -89,7 +92,24 @@ def validate_ready(message: object, session_id: str) -> ServerCapabilities:
     )
     if any(not isinstance(raw.get(key), bool) for key in required):
         raise ProtocolError("session.ready has invalid capabilities")
-    return ServerCapabilities(**{key: raw[key] for key in required})
+    profile = message.get("effective_profile")
+    tools = message.get("effective_tools")
+    voice = message.get("effective_voice")
+    if profile is not None and (not isinstance(profile, str) or not profile):
+        raise ProtocolError("session.ready has invalid effective_profile")
+    if tools is not None and (
+        not isinstance(tools, list)
+        or not all(isinstance(tool, str) and tool for tool in tools)
+    ):
+        raise ProtocolError("session.ready has invalid effective_tools")
+    if voice is not None and (not isinstance(voice, str) or not voice):
+        raise ProtocolError("session.ready has invalid effective_voice")
+    return ServerCapabilities(
+        **{key: raw[key] for key in required},
+        effective_profile=profile,
+        effective_tools=tuple(tools or ()),
+        effective_voice=voice,
+    )
 
 
 def validate_event(message: object, session_id: str) -> dict[str, Any]:

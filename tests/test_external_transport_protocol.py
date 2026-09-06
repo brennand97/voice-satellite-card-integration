@@ -69,6 +69,19 @@ class ProtocolTests(unittest.TestCase):
         self.assertIsNone(message["conversation"]["device_id"])
         self.assertEqual(message["conversation"]["output_modalities"], ["text"])
 
+    def test_ready_accepts_effective_profile_metadata(self) -> None:
+        ready = protocol.validate_ready(
+            {
+                "type": "session.ready", "session_id": "id",
+                "capabilities": {"transcription": True, "text_input": True, "streaming_audio_url": True, "interruptions": True, "conversation_continuation": True},
+                "effective_profile": "home-read-only",
+                "effective_tools": ["homeassistant__GetLiveContext"],
+            },
+            "id",
+        )
+        self.assertEqual(ready.effective_profile, "home-read-only")
+        self.assertEqual(ready.effective_tools, ("homeassistant__GetLiveContext",))
+
     def test_ready_requires_matching_session(self) -> None:
         with self.assertRaises(protocol.ProtocolError):
             protocol.validate_ready({"type": "session.ready", "session_id": "other"}, "id")

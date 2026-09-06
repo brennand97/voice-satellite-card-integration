@@ -180,6 +180,9 @@ class ExternalConversationRuntime:
             if not (capabilities.transcription and capabilities.text_input and capabilities.streaming_audio_url and capabilities.interruptions and capabilities.conversation_continuation):
                 await client.close()
                 raise ProtocolError("external transport lacks required persistent-turn capabilities")
+            if self._tool_profile is not None and capabilities.effective_profile != self._tool_profile:
+                await client.close()
+                raise ProtocolError("external transport resolved an unexpected tool profile")
             self._client = client
             self._event_task = asyncio.create_task(self._read_events(), name="voice_satellite.external_events")
 
