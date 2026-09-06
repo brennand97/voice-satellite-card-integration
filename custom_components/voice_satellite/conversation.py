@@ -12,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
@@ -120,14 +121,42 @@ class ExternalTransportConversationEntity(conversation.ConversationEntity):
             await client.start_turn(turn_id, "text")
             await client.write_text(turn_id, user_input.text)
             await client.end_turn(turn_id)
+            events = client.events()
+            response_finished = False
             async with asyncio.timeout(60):
-                async for event in client.events():
-                    if event["type"] == "assistant.text.delta":
+                while True:
+                    try:
+                        if response_finished:
+                            # Realtime may emit a spoken/text preamble finish
+                            # before function-call lifecycle and continuation.
+                            # Keep a short bounded grace period for that path.
+                            async with asyncio.timeout(2):
+                                event = await anext(events)
+                        else:
+                            event = await anext(events)
+                    except TimeoutError:
+                        return
+                    if event["type"] == "assistant.response_started":
+                        response_finished = False
+                    elif event["type"] == "assistant.text.delta":
                         yield {"content": event["text"]}
                     elif event["type"] == "assistant.text.final":
                         yield {"role": "assistant", "content": event["text"]}
+                    elif event["type"] == "assistant.tool_call_started":
+                        # Pipecat already executed this provider tool. Mark it
+                        # external so ChatLog renders it but never dispatches it
+                        # through HA's LLM API a second time.
+                        yield {"tool_calls": [llm.ToolInput(id=event["tool_call_id"], tool_name=event["tool_name"], tool_args=event["arguments"], external=True)]}
+                    elif event["type"] == "assistant.tool_call_finished":
+                        yield {
+                            "role": "tool_result", "tool_call_id": event["tool_call_id"],
+                            "tool_name": event["tool_name"], "tool_result": {
+                                "content": event["result"], "is_error": event["is_error"],
+                                "truncated": event.get("result_truncated", False),
+                            },
+                        }
                     elif event["type"] == "assistant.response_finished":
-                        return
+                        response_finished = True
                     elif event["type"] == "error":
                         raise conversation.ConverseError("External conversation failed")
         finally:
