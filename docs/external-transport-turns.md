@@ -9,6 +9,12 @@ text turns.
 
 The implementation must satisfy two equally important goals:
 
+> Follow-up note: physical Kiosk testing exposed distinct provider-generation,
+> local-playback, visualization, and terminal-state lifecycles. The focused
+> failing-test-first correction is specified in
+> `external-transport-client-lifecycle-plan.md` and supersedes this document's
+> frontend lifecycle details where they differ.
+
 1. Support persistent turns, client text, response correlation, and server-owned
    barge-in correctly.
 2. Keep the fork inexpensive to synchronize with upstream Voice Satellite.
