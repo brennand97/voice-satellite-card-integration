@@ -15,7 +15,7 @@ No profile or generic-conversation behavior described here is implemented yet.
 2. Support reusable per-session profiles for prompt, voice, and tool policy.
 3. Keep the Pipecat deployment authoritative over every executable tool.
 4. Let a real satellite session supply the HA device ID needed by device-scoped features such as timers.
-5. Add an admin-only generic conversation launcher in the existing HA sidebar panel that requires no configured satellite and intentionally has no timer/device support.
+5. Expose each profile as a native HA `ConversationEntity` that works in the standard conversation view with no configured Satellite and intentionally has no timer/device support.
 6. Support exact tool names and anchored suffix wildcards in trusted MCP allowlists.
 7. Compile every session through one clean, immutable Pipecat session model rather than distributing profile/tool conditionals across providers.
 8. Keep all provider calls, event streams, payloads, and teardown bounded and auditable.
@@ -24,19 +24,23 @@ No profile or generic-conversation behavior described here is implemented yet.
 
 ### Existing Voice Satellite configuration
 
-- External Transport URL, bearer token, TLS verification, and ready timeout are stored in each satellite config entry's options. This must be refactored before a generic launcher can work with zero Satellite entries.
+- External Transport URL, bearer token, TLS verification, and ready timeout are stored in each Satellite config entry's options. This must be refactored before a conversation entity can work with zero Satellite entries.
 - The browser never receives those credentials; Home Assistant owns the provider WebSocket.
 - A persistent `ExternalConversationRuntime` is created per satellite entity and reused across turns until terminal closure.
 - Browser presentation settings already have a server-backed per-satellite store, but its WebSocket save endpoint is not an appropriate security boundary for prompts or tool permissions.
-- The integration already registers a custom HA sidebar panel, so no new frontend registration mechanism is required for a generic conversation launcher.
+- The integration already registers a custom HA sidebar panel, which can later host an optional admin Prompt Lab without defining the core satellite-free model.
 
-### Home Assistant native text APIs
+### Home Assistant native conversation model
 
-`conversation/process` accepts text, agent, conversation ID, device ID, and satellite ID. It does not select External Transport and does not expose per-request provider voice or tool policy.
+`conversation.ConversationEntity` is the correct native abstraction for an External Transport model backend. Once the integration registers such an entity as an agent, HA's standard `conversation/process` command and conversation UI can select it with an `agent_id`, conversation ID, and no Satellite/device.
 
-`assist_pipeline/run` supports text input without a device, but it runs an HA Assist pipeline. It does not connect to the External Transport server and its public WebSocket schema does not provide the replacement system-prompt/voice/tool-profile contract needed here.
+A conversation entity receives HA's `ChatLog`. The log supports streamed assistant text and externally executed tool calls/results (`ToolInput.external=True`), allowing Pipecat tool lifecycle to appear in HA's standard conversation view without HA executing the same tool again.
 
-Therefore a satellite-free External Transport console requires a custom integration WebSocket command rather than repurposing either native endpoint.
+Modern HA model integrations use one credential-bearing parent config entry and one `conversation` config subentry per configured agent/profile. This fits External Transport better than a custom profile Store.
+
+`assist_pipeline/run` remains useful when STT/TTS orchestration is wanted, but it is not the model abstraction. It can point at a pipeline whose conversation agent is our entity; without a physical Satellite, any TTS is HA pipeline TTS rather than OpenAI Realtime audio.
+
+The standard `conversation/process` schema does not carry arbitrary per-request prompt, voice, or tool policy. Persistent profile values belong in conversation subentries. A separate admin Prompt Lab may add ephemeral overrides later, but the basic satellite-free conversation requires no custom transport-specific launcher command.
 
 ### Home Assistant MCP and timers
 
@@ -48,8 +52,8 @@ Timer integration therefore requires a scoped Voice Satellite tool or context in
 
 ## Explicit non-goals
 
-- Do not create a virtual, synthetic, or ephemeral Satellite/device for the generic conversation launcher.
-- Do not provide timer UI or timer tools to generic launcher sessions.
+- Do not create a virtual, synthetic, or ephemeral Satellite/device for generic conversation entities.
+- Do not provide timer UI or timer tools to generic conversation-entity sessions.
 - Do not let clients send MCP endpoints, credentials, provider definitions, arbitrary wildcard policies, or contextual argument values.
 - Do not put profile compilation logic in the OpenAI realtime service or event sink.
 
@@ -85,91 +89,73 @@ Home Assistant owns:
 - selection of an approved server profile name;
 - session prompt and voice values;
 - the current satellite entity/device context;
-- admin-only generic-conversation overrides.
+- admin-only ephemeral Prompt Lab overrides, if that optional UI is later added.
 
 HA stores only External Transport connection credentials in dedicated config entries. It never stores MCP/OpenAI credentials in session profiles and never sends any External Transport credential to the frontend.
 
 ### Browser authority
 
-Normal cards may start/stop their assigned session but cannot change security-sensitive tool policy. Only an HA administrator may create/edit profiles or submit arbitrary prompts/voices/tool subsets through the generic conversation launcher.
+Normal cards may start/stop their assigned session but cannot change security-sensitive tool policy. HA's normal conversation UI selects a configured conversation entity; only an administrator may create/edit its profile subentry or use a future ephemeral Prompt Lab.
 
-## External Conversation Service config entries
+## External Conversation Service entry and profile subentries
 
-Extend the integration config flow with an entry kind dedicated to an External Transport connection. It is not a Satellite entity/device and creates no entity platforms. It stores only backend connection data:
+Extend the integration config flow with an `External Conversation Service` parent entry. It is not a Satellite/device. It stores backend connection data:
 
-- stable connection ID and display name;
+- stable entry ID and display name;
 - External Transport URL and bearer token;
 - TLS verification;
 - ready/connect timeout.
 
-The integration can then load and register its sidebar panel with only this service entry configured. Profiles reference the stable connection ID. Both real Satellite runtimes and the generic conversation broker resolve credentials from that entry; neither copies credentials into profile storage.
+Following HA's current OpenAI/Anthropic integration model, add one `conversation` config subentry for each External agent profile. Each subentry creates a selectable `conversation` entity and stores:
 
-For backward compatibility, existing Satellite-local connection options continue to work during migration. Provide an admin migration action that creates a service connection from those options and updates the Satellite's profile/connection reference. Never silently choose credentials from the first available Satellite.
-
-## Proposed data model
-
-Create a separate versioned HA Store, not the existing panel settings store:
-
-```json
-{
-  "profiles": {
-    "default-home": {
-      "name": "Default home assistant",
-      "connection_id": "primary-external",
-      "initial_prompt": null,
-      "initial_voice": null,
-      "server_tool_profile": "home-default",
-      "requested_tools": null,
-      "timer_access": true
-    },
-    "read-only-test": {
-      "name": "Read-only testing",
-      "connection_id": "primary-external",
-      "initial_prompt": "...",
-      "initial_voice": "ballad",
-      "server_tool_profile": "home-read-only",
-      "requested_tools": ["homeassistant__GetLiveContext"],
-      "timer_access": false
-    }
-  },
-  "assignments": {
-    "assist_satellite.kitchen": "default-home"
-  }
-}
+```yaml
+name: Reginold read-only
+initial_prompt: null
+initial_voice: null
+server_tool_profile: home-read-only
+requested_tools:
+  - homeassistant__GetLiveContext
 ```
+
+The parent owns credentials; subentries never copy them. A physical Voice Satellite config entry references a parent connection entry plus a conversation subentry ID. HA's standard conversation UI selects the generated entity directly.
+
+This allows the integration and conversation entity to exist with zero Satellite entries. Both real Satellite runtimes and conversation entities resolve credentials from the parent entry. Never borrow credentials from an arbitrary Satellite.
+
+For backward compatibility, existing Satellite-local connection options continue during migration. Provide an admin migration action that creates a parent service entry/profile subentry and updates the Satellite references.
 
 Validation requirements:
 
-- stable opaque profile and connection IDs separate from display names;
+- stable config entry/subentry IDs separate from display names;
 - prompt: null or non-empty, at most 16,000 UTF-8 bytes;
 - voice: null or non-empty, at most 128 UTF-8 bytes;
-- profile/tool names: conservative identifier syntax and bounded count/length;
-- requested tools: unique string list;
-- no URL, bearer token, API key, or arbitrary script command fields;
-- unknown keys rejected;
-- migration/versioning support;
-- diagnostics redact prompt content and show only profile IDs/tool names.
+- server profile/tool names: conservative identifier syntax and bounded count/length;
+- requested tools: unique exact-name string list;
+- no MCP URL, bearer token, API key, or arbitrary script command in a profile subentry;
+- unknown fields rejected;
+- config-entry migration/versioning support;
+- diagnostics redact credential/prompt content and show only profile IDs/tool names.
 
-Assignment should live in this profile store or config-entry options. Do not expose tool-profile assignment as an unrestricted HA `select` entity because changing it changes executable capability.
+Do not expose profile assignment as an unrestricted HA `select` entity because changing it changes executable capability.
 
 ## External Transport protocol additions
 
-Allow `session.start` to identify either a real satellite (the existing shape) or a generic client. Existing Satellite clients remain valid; the generic HA launcher sends a client identity without pretending to be a satellite:
+Allow `session.start` to identify either a real Satellite (the existing shape) or a generic conversation agent. Existing Satellite clients remain valid; a `ConversationEntity` sends a generic identity without pretending to be a Satellite:
 
 ```json
 {
-  "client": {"id": "ha-external-console", "name": "External conversation console", "kind": "ha_console"},
+  "client": {"id": "conversation.reginold_read_only", "name": "Reginold read-only", "kind": "ha_conversation"},
   "conversation": {
     "profile": "home-read-only",
     "requested_tools": ["homeassistant__GetLiveContext"],
     "initial_prompt": "...",
-    "initial_voice": "ballad",
-    "device_id": null
+    "initial_voice": null,
+    "device_id": null,
+    "output_modalities": ["text"]
   }
 }
 ```
 
-For a real Satellite runtime, HA supplies both the existing satellite entity identity and its registry `device_id`. The generic conversation launcher always sends `device_id: null` and has no timer/device context. `initial_prompt` and `initial_voice` already exist server-side. Add bounded validation for client identity, profile, requested tools, and device ID.
+For a real Satellite runtime, HA supplies both the existing Satellite entity identity and its registry `device_id`, and requests text plus audio output. A generic `ConversationEntity` always sends `device_id: null` and text-only output, so it has no timer/device context and does not generate unused OpenAI audio. `initial_prompt` and `initial_voice` already exist server-side. Add bounded validation for client identity, profile, requested tools, device ID, and output modalities. Voice is meaningful only when audio output is selected.
 
 The server should return effective, non-secret session configuration in `session.ready`:
 
@@ -291,66 +277,48 @@ If profile resolution fails, show one explicit configuration error and do not fa
 
 ## Admin profile UI
 
-Add an admin-only section to the existing Voice Satellite sidebar panel:
+Use HA config and config-subentry flows as the primary profile editor, matching current model-provider integrations:
 
-- list/create/duplicate/delete profiles;
-- assign profiles to satellite entities;
+- create/reconfigure/delete External Conversation Service parent entries;
+- create/duplicate/reconfigure/delete conversation profile subentries;
 - prompt editor with replacement semantics clearly labeled;
 - provider voice text/select field;
-- External Conversation Service connection selector;
-- server profile selector populated from a safe server capability endpoint or manually configured known IDs;
-- requested-tool checklist constrained to the selected server profile's advertised names;
-- timer-access indicator explaining that only real Satellite sessions carry device context;
-- unsaved-change and active-session-restart warnings.
+- server profile selector populated from a safe capability query;
+- requested-tool checklist constrained to concrete names expanded by the server;
+- timer-context indicator explaining that generic conversation entities never carry device context;
+- Satellite options-flow selector for assigning a connection/profile subentry;
+- active-session restart warnings.
 
-Backend WebSocket commands should all use `@websocket_api.require_admin`:
+If the sidebar panel presents the same controls, it should launch HA config flows rather than maintain a second profile database. A custom capability-preview WebSocket command must use `@websocket_api.require_admin`. The current panel-settings endpoints must not be reused for security-sensitive data.
 
-```text
-voice_satellite/external_profiles/list
-voice_satellite/external_profiles/save
-voice_satellite/external_profiles/delete
-voice_satellite/external_profiles/assign
-voice_satellite/external_profiles/server_capabilities
-```
+## Satellite-free ConversationEntity
 
-The current panel-settings endpoints must not be reused for this data.
+Each profile subentry creates a `ConversationEntity` and registers it as an HA conversation agent. The standard HA conversation view can select it and call `conversation/process`; no custom message transport is required for normal use.
 
-## Generic HA conversation launcher
+For each HA conversation ID, the entity's bounded session manager owns a corresponding text-only External Transport session:
 
-Add an admin-only text conversation launcher to the existing HA sidebar panel. It is not a Satellite, does not create or impersonate an HA device, and has no timer support. It communicates only with a custom HA WebSocket broker:
+1. HA opens/loads its `ChatLog` and supplies the user message.
+2. The entity resolves its immutable profile subentry.
+3. It opens or reuses a Pipecat session keyed by conversation entity ID, HA conversation ID, HA user ID, and profile revision.
+4. It sends generic client identity, `device_id: null`, and `output_modalities: ["text"]`.
+5. It maps Pipecat text deltas into `ChatLog.async_add_delta_content_stream`.
+6. It maps Pipecat tool start events to `llm.ToolInput(..., external=True)` and result events to `ToolResultContentDeltaDict`, so HA visualizes but does not re-execute them.
+7. It returns `conversation.async_get_result_from_chat_log` for native HA response semantics.
+8. It serializes turns per conversation so concurrent HA requests cannot overlap or cross streams.
+9. It expires idle sessions and closes all sessions on unload with bounded waits.
 
-```text
-voice_satellite/external_conversation/start
-voice_satellite/external_conversation/turn
-voice_satellite/external_conversation/cancel
-```
+The generic entity:
 
-The HA backend owns the External Transport client and credentials. The browser receives sanitized lifecycle/text/tool events and signed audio URLs through the existing event normalization path.
-
-Conversation start options:
-
-- profile ID;
-- optional one-session prompt override;
-- optional one-session voice override;
-- optional exact-name requested tool subset;
-- text-only input initially.
-
-Every launcher session:
-
-- uses a generic protocol client identity such as `voice_satellite.external_conversation`;
-- sends no satellite entity and `conversation.device_id: null`;
-- permits only ordinary tools compiled from its approved server profile;
-- automatically omits every context-required tool, including timers;
+- creates no Satellite or HA device;
+- always has no device context;
+- automatically omits timers and every other context-required tool;
 - does not infer a room or area from a device;
-- renders transcript/tool lifecycle/audio in the panel itself;
-- guarantees bounded idle and maximum-session shutdown;
-- cannot displace or mutate a physical Satellite runtime.
+- cannot displace or mutate a physical Satellite runtime;
+- appears anywhere HA can select a conversation agent, including the standard conversation view and text Assist pipelines.
 
-### Why not use HA's default conversation view
+The standard view cannot submit arbitrary one-off prompt/voice/tool changes. Those remain profile-subentry settings. If rapid ephemeral experiments are still desirable, add an admin-only `Prompt Lab` section to the existing sidebar panel later. It may create a temporary generic session through a custom HA broker, but it must use the same profile resolver/session compiler and remain device-less. It is an optional convenience layer, not the satellite-free model itself.
 
-HA's standard conversation UI invokes `conversation/process`, which selects HA conversation agents and cannot carry External Transport prompt/voice/tool-profile configuration. Reusing its visual component may be possible later, but its backend command cannot provide the required semantics.
-
-A custom section in the already-registered HA sidebar panel is therefore the smallest correct generic conversation entry point. It requires neither a Voice Satellite config entry nor any synthetic device.
+Because standard `conversation/process` is text-oriented, the generic entity should not request OpenAI audio. If an optional Prompt Lab needs to compare Realtime voices, it can explicitly request audio and play the signed stream in that admin panel.
 
 ## Existing tool-event prerequisite
 
@@ -401,16 +369,17 @@ Tool request/results now cross the protocol but can be large. Before exposing th
 7. Return effective non-secret configuration in `session.ready`.
 8. Audit profile compilation and rejection.
 
-### Phase 2 — HA connections, profile store, and satellite assignment
+### Phase 2 — HA conversation entities and Satellite assignment
 
-1. Add the entity-free External Conversation Service config-entry kind.
-2. Move reusable URL/token/TLS/timeout resolution behind a connection registry.
-3. Add the validated versioned profile Store.
-4. Add admin-only profile CRUD/assignment WebSocket API.
-5. Add connection/profile editor and assignment UI.
-6. Resolve and snapshot connection/profile when creating a real Satellite runtime.
-7. Recreate runtime after connection/profile changes.
-8. Add backward-compatible migration from Satellite-local connection options.
+1. Add the entity-free External Conversation Service parent config entry.
+2. Add conversation profile config subentries and config flows.
+3. Create/register one `ConversationEntity` per profile subentry.
+4. Implement the bounded per-conversation External session manager and ChatLog adapter.
+5. Add text-only output modality support and external tool-call/result mapping.
+6. Add Satellite options-flow assignment to a connection/profile subentry.
+7. Resolve and snapshot connection/profile/device context when creating a real Satellite runtime.
+8. Recreate runtimes after connection/profile changes.
+9. Add backward-compatible migration from Satellite-local connection options.
 
 ### Phase 3 — Device-context timer tool
 
@@ -421,19 +390,19 @@ Tool request/results now cross the protocol but can be large. Before exposing th
 5. Verify native timer entity updates, pills, finish alert, and cancellation.
 6. Verify generic conversation sessions never advertise or invoke the timer tool.
 
-### Phase 4 — Admin generic conversation launcher
+### Phase 4 — Optional admin Prompt Lab
 
-1. Refactor an entity-independent HA External session broker from runtime code.
-2. Add admin-only start/turn/cancel WebSocket commands.
-3. Add panel UI for profile/prompt/voice and exact-name subset, with no satellite/device selector.
-4. Always compile launcher sessions with no device context.
-5. Render text, audio, and tool lifecycle with privacy controls.
+1. First validate the generated conversation entities in HA's standard conversation view.
+2. Only if ephemeral experiments remain awkward, add an admin Prompt Lab to the existing sidebar panel.
+3. Reuse the same parent connection resolver, generic session manager, ChatLog/event adapter, and server compiler.
+4. Permit one-session prompt/voice/exact-tool overrides but never device context.
+5. Request audio only when explicitly testing a voice; otherwise remain text-only.
 6. Add bounded idle/session timers and terminal cleanup.
 7. Add a satellite-free E2E test proving ordinary tools work and context-required tools are absent.
 
 ## Acceptance criteria
 
-- An External Conversation Service entry can exist and power the HA panel without any Satellite entity.
+- An External Conversation Service entry and conversation profile subentry can create a selectable HA conversation entity without any Satellite entity.
 - A satellite can be assigned a named HA session profile without browser-visible credentials.
 - Prompt and voice overrides apply only to the newly created provider session.
 - HA cannot request any tool outside the server-authorized profile.
@@ -441,7 +410,8 @@ Tool request/results now cross the protocol but can be large. Before exposing th
 - Exact names and anchored terminal-wildcard patterns select only discovered tools they match.
 - A timer request from a real Satellite session with a validated HA device ID creates the existing countdown pill and finish alert.
 - A generic conversation session has no device identity and cannot access timer/device-context tools.
-- An administrator can run a text-only External conversation from the HA sidebar panel without configuring a satellite.
+- A user can run a text-only External conversation from HA's standard conversation view by selecting the generated conversation entity, without configuring a Satellite.
+- Pipecat tool start/results populate HA ChatLog as externally executed tools and are never executed twice.
 - OpenAI/Pipecat provider code consumes one immutable compiled session plan and contains no profile/wildcard/HA-device policy branches.
 - Normal users cannot edit profiles, widen tools, or run arbitrary prompt experiments.
 - Tool arguments/results remain transported but are not rendered by normal Satellite UI.
