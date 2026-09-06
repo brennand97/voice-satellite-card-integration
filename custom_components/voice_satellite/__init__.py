@@ -595,9 +595,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.warning("Failed to verify frontend resource: %s", err)
 
-    platforms = [Platform.CONVERSATION] if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE else PLATFORMS
-    await hass.config_entries.async_forward_entry_setups(entry, platforms)
+    if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE:
+        await hass.config_entries.async_forward_entry_setups(entry, [Platform.CONVERSATION])
+        entry.async_on_unload(
+            entry.add_update_listener(_async_refresh_service_attachments)
+        )
+        return True
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entry.async_on_unload(entry.add_update_listener(_async_reload_satellite))
     return True
+
+
+async def _async_reload_satellite(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Rebuild an attachment when its service/profile assignment changes."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def _async_refresh_service_attachments(
+    hass: HomeAssistant, service_entry: ConfigEntry
+) -> None:
+    """Rebuild every Satellite attached to a changed service/profile entry."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE:
+            continue
+        if entry.options.get(CONF_CONVERSATION_SERVICE_ENTRY_ID) == service_entry.entry_id:
+            await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
