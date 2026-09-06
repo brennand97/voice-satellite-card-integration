@@ -135,6 +135,9 @@ export class VisibilityManager {
     // the OS mic indicator and stops inference battery drain while hidden.
     this._tornDown = true;
     const session = this._card;
+    // Visibility pause is terminal for an External run too. Stop any local
+    // signed WAV before releasing its persistent PCM subscription.
+    try { session._externalSession?.onTerminal('visibility_pause'); } catch (e) { this._log.log('visibility', `pause: external: ${e.message || e}`); }
     try { session.wakeWord?.release(); } catch (e) { this._log.log('visibility', `pause: wakeWord.release: ${e.message || e}`); }
     // Keep the stop() promise so _resume can await it - starting a new
     // subscription while the server is still cancelling the old pipeline

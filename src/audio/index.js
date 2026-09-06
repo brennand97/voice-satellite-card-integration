@@ -88,6 +88,21 @@ export class AudioManager {
   }
   get card() { return this._card; }
   get log() { return this._log; }
+
+  /** Restore the reactive bar to the capture source without reopening capture.
+   * Persistent External runs keep Kiosk PCM flowing during playback; native
+   * TTS temporarily owns the same external analyser channel. */
+  restoreCaptureVisualization() {
+    if (!this._mediaStream) return;
+    if (this._delegated || this._mediaStream.kioskSatellite) {
+      this._card.analyser.attachExternalMic();
+      return;
+    }
+    if (this._sourceNode && this._audioContext) {
+      this._card.analyser.attachMic(this._sourceNode, this._audioContext);
+      this._card.analyser.reconnectMic();
+    }
+  }
   get audioContext() { return this._audioContext; }
   get sourceNode() { return this._sourceNode; }
   get workletNode() { return this._workletNode; }

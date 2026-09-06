@@ -517,8 +517,9 @@ visibility pause, mute, displacement, or failure.
 - Every output event is accepted only when `(turn_id, response_id)` matches.
 - PCM is sent only while an audio turn is open.
 - Text is sent exactly once and never through the PCM queue.
-- Terminal close releases the client, event task, audio task, idle timer, and
-  binding.
+- Terminal close releases the client, event task, audio task, and binding.
+  The frontend owns post-playback inactivity because it alone knows when local
+  native/browser playback has ended.
 
 ### 7.2 Displacement
 

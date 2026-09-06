@@ -106,7 +106,9 @@ source of truth for External lifecycle decisions.
 
 ## 4. Explicit frontend state machine
 
-Create `src/pipeline/external-session.js`.
+Create `src/pipeline/external-session.mjs` (the `.mjs` extension keeps its
+Node built-in test imports ESM without changing the repository-wide package
+module mode).
 
 ### 4.1 States
 
@@ -185,7 +187,7 @@ silently treated as normal HA pipeline events.
 
 ## 5. File-by-file implementation plan
 
-### 5.1 New: `src/pipeline/external-session.js`
+### 5.1 New: `src/pipeline/external-session.mjs`
 
 Implement `ExternalSessionController` with injected mechanisms so it can be unit
 tested without DOM, Audio, Home Assistant, or Kiosk globals.

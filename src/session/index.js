@@ -16,6 +16,7 @@ import { AudioManager } from '../audio';
 import { AnalyserManager } from '../audio/analyser.js';
 import { TtsManager } from '../tts';
 import { PipelineManager } from '../pipeline';
+import { ExternalSessionController } from '../pipeline/external-session.mjs';
 import { DoubleTapHandler } from '../shared/double-tap.js';
 import { VisibilityManager } from '../shared/visibility.js';
 import { TimerManager } from '../timer';
@@ -110,6 +111,21 @@ export class VoiceSatelliteSession {
     this._analyser = new AnalyserManager(this);
     this._tts = new TtsManager(this);
     this._pipeline = new PipelineManager(this);
+    this._externalSession = new ExternalSessionController({
+      log: this._logger,
+      playResponseAudio: (_responseId, url) => this._tts.play(url, false),
+      stopResponseAudio: () => this._tts.stop(),
+      restoreCaptureVisualization: () => this._audio.restoreCaptureVisualization(),
+      setPresentationState: (state) => setState(this, State[state.toUpperCase()]),
+      showInteractionUi: () => this._uiProxy.showBlurOverlay(BlurReason.PIPELINE),
+      hideInteractionUi: () => {
+        this._uiProxy.stopReactive();
+        this._uiProxy.hideBar();
+        this._uiProxy.hideBlurOverlay(BlurReason.PIPELINE);
+      },
+      stopPipeline: (reason) => this.teardown(reason),
+      followupTimeoutMs: 60000,
+    });
     this._doubleTap = new DoubleTapHandler(this);
     this._visibility = new VisibilityManager(this);
     this._timer = new TimerManager(this);
@@ -486,8 +502,11 @@ export class VoiceSatelliteSession {
    * Tear down the active session: stop pipeline, mic, TTS, timers,
    * subscriptions. Cards remain registered and can restart.
    */
-  teardown() {
-    this._logger.log('session', 'Tearing down session');
+  teardown(reason = 'session_teardown') {
+    this._logger.log('session', `Tearing down session (${reason})`);
+    // Clear only External lifecycle ownership here. The common teardown below
+    // remains the single place that stops mic, subscription, and TTS.
+    this._externalSession?.onTerminal(reason);
     if (this._imageLingerTimeout) {
       clearTimeout(this._imageLingerTimeout);
       this._imageLingerTimeout = null;

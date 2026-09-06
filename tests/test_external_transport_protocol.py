@@ -216,11 +216,38 @@ class FakeRuntimeClient:
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
-    async def test_response_finish_keeps_capture_then_idle_closes_session(self) -> None:
+    async def test_speech_after_response_finish_keeps_capture_and_forwards_vad(self) -> None:
         original_client = runtime_module.ExternalTransportClient
-        original_timeout = runtime_module._PERSISTENT_IDLE_TIMEOUT
         runtime_module.ExternalTransportClient = FakeRuntimeClient
-        runtime_module._PERSISTENT_IDLE_TIMEOUT = 0.02
+        FakeRuntimeClient.instances.clear()
+        try:
+            connection = FakeRuntimeConnection()
+            queue: asyncio.Queue[bytes] = asyncio.Queue()
+            runtime = runtime_module.ExternalConversationRuntime(
+                http=object(), url="wss://voice.example/transport/v1", token="test",
+                verify_tls=True, ready_timeout=1, session_id="s1",
+                satellite_entity_id="assist_satellite.kitchen", satellite_name="Kitchen",
+            )
+            task = asyncio.create_task(
+                runtime.attach_audio(queue, connection, 1, conversation_id=None, wake_word=None)
+            )
+            while not FakeRuntimeClient.instances:
+                await asyncio.sleep(0)
+            client = FakeRuntimeClient.instances[0]
+            await client.events_queue.put({"type": "assistant.response_started", "turn_id": "t1", "response_id": "r1"})
+            await client.events_queue.put({"type": "assistant.response_finished", "turn_id": "t1", "response_id": "r1"})
+            await client.events_queue.put({"type": "user.speech_started", "turn_id": "t2"})
+            await asyncio.sleep(0)
+            self.assertFalse(task.done())
+            self.assertIn({"type": "external-vad-start", "data": {"external": {"turn_id": "t2"}}}, connection.events)
+            await queue.put(b"")
+            await asyncio.wait_for(task, 1)
+        finally:
+            runtime_module.ExternalTransportClient = original_client
+
+    async def test_response_finish_does_not_start_ha_idle_timer(self) -> None:
+        original_client = runtime_module.ExternalTransportClient
+        runtime_module.ExternalTransportClient = FakeRuntimeClient
         FakeRuntimeClient.instances.clear()
         try:
             connection = FakeRuntimeConnection()
@@ -241,12 +268,15 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
             self.assertFalse(task.done())
             self.assertEqual(len(client.started), 2)  # initial + speculative turn
+            # Playback completion is only known by the frontend, which sends
+            # the terminal queue marker after its follow-up timeout.
+            await asyncio.sleep(0.03)
+            self.assertFalse(task.done())
+            await queue.put(b"")
             await asyncio.wait_for(task, 1)
-            self.assertIn("idle_timeout", client.cancelled)
-            self.assertIn({"type": "run-end", "data": {}}, connection.events)
+            self.assertIn("client_stopped", client.cancelled)
         finally:
             runtime_module.ExternalTransportClient = original_client
-            runtime_module._PERSISTENT_IDLE_TIMEOUT = original_timeout
 
 
 class ClientTests(unittest.IsolatedAsyncioTestCase):

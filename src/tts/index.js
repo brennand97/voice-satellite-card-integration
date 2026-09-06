@@ -142,6 +142,11 @@ export class TtsManager {
    * @param {string} [mediaId] - media-source:// URI for remote playback (HA resolves/proxies)
    */
   play(urlPath, isRetry, mediaId) {
+    // TtsManager owns exactly one audible output. In particular, an External
+    // response may replace a locally buffered signed WAV after provider-side
+    // generation has already finished, so no pipeline tts-end exists to stop
+    // the old native handle first.
+    if (this._playing) this.stop();
     const url = buildMediaUrl(urlPath);
     this._playing = true;
     // Halt wake-word inference IMMEDIATELY - before audio loading begins

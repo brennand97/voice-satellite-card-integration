@@ -559,20 +559,18 @@ export function performFollowupHandoff(session, onReady, opts = {}) {
  * @param {boolean} [playbackFailed]
  */
 export function onTTSComplete(session, playbackFailed) {
+  // Persistent External playback owns its own capture and inactivity
+  // lifecycle. Do this before generic state checks: a provider VAD event may
+  // have projected STT while a native WAV is still completing.
+  if (session._externalSession?.ownsPlayback()) {
+    session._externalSession.onPlaybackComplete(playbackFailed);
+    return;
+  }
+
   // If a NEW interaction started during TTS, don't clean up
   const newInteractionStates = [State.WAKE_WORD_DETECTED, State.STT, State.INTENT];
   if (newInteractionStates.includes(session.currentState)) {
     session.logger.log('tts', 'New interaction in progress - skipping cleanup');
-    return;
-  }
-
-  // External Transport keeps its native PCM stream open between turns.
-  // Do not execute normal end-of-run cleanup after playback: that would
-  // unsubscribe Kiosk capture and prevent provider-side VAD/barge-in.
-  if (session._externalPersistentTurn) {
-    session.logger.log('pipeline', 'External response complete - keeping persistent audio turn ready');
-    setState(session, State.STT);
-    session.ui.showBlurOverlay(BlurReason.PIPELINE);
     return;
   }
 
@@ -734,7 +732,10 @@ export function handlePipelineMessage(session, message) {
   session.pipeline.clearVadWatchdog();
 
   switch (eventType) {
-    case 'run-start': session.pipeline.handleRunStart(eventData); break;
+    case 'run-start':
+      if (eventData.external?.persistent) session._externalSession.onRunStart();
+      session.pipeline.handleRunStart(eventData);
+      break;
     case 'wake_word-start': session.pipeline.handleWakeWordStart(); break;
     case 'wake_word-end': session.pipeline.handleWakeWordEnd(eventData); break;
     case 'stt-start':
@@ -748,7 +749,7 @@ export function handlePipelineMessage(session, message) {
     // listening bar visible indefinitely.
     case 'external-vad-start':
       session.logger.log('event', 'External VAD: speech started');
-      setState(session, State.STT);
+      session._externalSession.onSpeechStarted(eventData.external);
       session.pipeline.armVadWatchdog();
       break;
     case 'stt-vad-end':
@@ -757,8 +758,11 @@ export function handlePipelineMessage(session, message) {
       break;
     case 'stt-end': session.pipeline.handleSttEnd(eventData); break;
     case 'intent-start':
-      if (eventData.external?.response_id) session._externalResponseId = eventData.external.response_id;
-      setState(session, State.INTENT);
+      if (eventData.external?.response_id) {
+        session._externalSession.onResponseStarted(eventData.external);
+      } else {
+        setState(session, State.INTENT);
+      }
       session.chat.showThinking();
       break;
     case 'intent-progress':
@@ -771,33 +775,24 @@ export function handlePipelineMessage(session, message) {
     // output. Do not route them through handleTtsEnd(): that handler restarts
     // the normal pipeline before streaming playback has completed.
     case 'external-audio-start':
-      if (!eventData.external?.response_id || eventData.external.response_id !== session._externalResponseId) break;
-      session._externalPersistentTurn = true;
-      setState(session, State.TTS);
-      session.tts.play(eventData.url, false);
+      session._externalSession.onResponseAudio(eventData.external, eventData.url);
       break;
     case 'tts-audio-duration': session.tts.setAudioDuration(eventData.duration); break;
     // External Transport reports provider-side barge-in separately from HA
     // pipeline events. Stop native/browser playback immediately; the next
     // transcript or response event drives the usual state machine.
     case 'external-response-finished':
-      if (!eventData.external?.response_id || eventData.external.response_id !== session._externalResponseId) break;
-      // Audio completion invokes onTTSComplete, which preserves the live
-      // external PCM turn. Text-only responses need the same ready state now.
-      session._externalPersistentTurn = true;
-      if (!session.tts.isPlaying) setState(session, State.STT);
+      session._externalSession.onResponseFinished(eventData.external);
       break;
     case 'external-interrupted':
-      if (!eventData.external?.response_id || eventData.external.response_id !== session._externalResponseId) break;
-      session._externalResponseId = null;
-      session.tts.stop();
-      setState(session, State.STT);
+      session._externalSession.onInterrupted(eventData.external);
       break;
     case 'run-end':
       // A late finish from a revoked external response must not clean up a
       // newer response's UI or playback.
-      if (eventData.external?.response_id && eventData.external.response_id !== session._externalResponseId) break;
-      if (eventData.external?.response_id) session._externalResponseId = null;
+      if (eventData.external?.response_id && eventData.external.response_id !== session._externalSession.providerResponseId
+          && eventData.external.response_id !== session._externalSession.playbackResponseId) break;
+      session._externalSession.onTerminal('run_end');
       session.pipeline.handleRunEnd();
       break;
     case 'error': session.pipeline.handleError(eventData); break;

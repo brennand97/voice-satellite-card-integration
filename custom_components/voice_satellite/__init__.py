@@ -863,16 +863,45 @@ async def ws_run_pipeline(
     )
 
     # Register binary handler for incoming audio.
-    # HA calls binary handlers with (hass, connection, payload).
+    # HA calls binary handlers with (hass, connection, payload). An External
+    # queue full condition means its consumer is no longer making progress;
+    # fail this bounded run once rather than retaining PCM and warning for
+    # every subsequent Kiosk frame.
+    overflowed = False
+
     def _on_binary(
         _hass: HomeAssistant,
         _connection: websocket_api.ActiveConnection,
         data: bytes,
     ) -> None:
+        nonlocal overflowed
+        if overflowed:
+            return
         try:
             audio_queue.put_nowait(data)
         except asyncio.QueueFull:
-            _LOGGER.warning("External transport audio queue overflow for '%s'", entity.satellite_name)
+            overflowed = True
+            _LOGGER.error(
+                "External transport audio queue overflow for '%s'; terminating run",
+                entity.satellite_name,
+            )
+            # Preserve the terminal marker even when every slot is PCM.
+            try:
+                audio_queue.get_nowait()
+                audio_queue.put_nowait(b"")
+            except (asyncio.QueueEmpty, asyncio.QueueFull):
+                pass
+            try:
+                connection.send_event(
+                    msg["id"],
+                    {"type": "error", "data": {
+                        "code": "external_audio_overflow",
+                        "message": "External audio transport stopped because it could not keep up.",
+                    }},
+                )
+            except Exception:
+                pass
+            unregister()
 
     handler_id, unregister = connection.async_register_binary_handler(
         _on_binary
