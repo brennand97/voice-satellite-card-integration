@@ -128,7 +128,7 @@ def test_profile_prompt_uses_a_multiline_text_selector() -> None:
         if getattr(key, "schema", None) == "initial_prompt"
     )
     assert isinstance(selector, TextSelector)
-    assert selector.config.multiline is True
+    assert selector.config["multiline"] is True
 
 
 @pytest.mark.parametrize(
@@ -170,12 +170,20 @@ def test_satellite_assignment_schemas_are_service_first_and_filter_profiles() ->
                 "profile-id": type(
                     "Profile",
                     (),
-                    {"subentry_type": "conversation", "title": "Default"},
+                    {
+                        "subentry_id": "profile-id",
+                        "subentry_type": "conversation",
+                        "title": "Default",
+                    },
                 )(),
                 "other-id": type(
                     "Other",
                     (),
-                    {"subentry_type": "not-a-conversation", "title": "Ignore"},
+                    {
+                        "subentry_id": "other-id",
+                        "subentry_type": "not-a-conversation",
+                        "title": "Ignore",
+                    },
                 )(),
             },
         },
