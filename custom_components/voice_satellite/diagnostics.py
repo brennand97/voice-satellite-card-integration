@@ -32,6 +32,10 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    CONF_CONVERSATION_PROFILE_ID,
+    CONF_CONVERSATION_SERVICE_ENTRY_ID,
+    CONF_ENTRY_TYPE,
+    ENTRY_TYPE_SERVICE,
     CONF_EXTERNAL_TRANSPORT_TOKEN,
     CONF_EXTERNAL_TRANSPORT_URL,
     CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
@@ -287,8 +291,10 @@ def _check_version(bundle_version: str | None) -> list[dict[str, Any]]:
 # ── Entity + pipeline ───────────────────────────────────────────────
 
 
-def _check_external_transport(entity: Any, selected: bool) -> list[dict[str, Any]]:
-    """Report the selected transport without disclosing endpoint credentials."""
+def _check_external_transport(
+    hass: HomeAssistant, entity: Any, selected: bool
+) -> list[dict[str, Any]]:
+    """Report the assigned shared service without disclosing credentials."""
     if not selected:
         return [_result(
             "srv.external_transport.selection",
@@ -299,16 +305,39 @@ def _check_external_transport(entity: Any, selected: bool) -> list[dict[str, Any
         )]
 
     options = entity._entry.options
-    url = options.get(CONF_EXTERNAL_TRANSPORT_URL)
-    token = options.get(CONF_EXTERNAL_TRANSPORT_TOKEN)
+    service_id = options.get(CONF_CONVERSATION_SERVICE_ENTRY_ID)
+    profile_id = options.get(CONF_CONVERSATION_PROFILE_ID)
+    service = (
+        hass.config_entries.async_get_entry(service_id)
+        if isinstance(service_id, str)
+        else None
+    )
+    profile = service.subentries.get(profile_id) if service and isinstance(profile_id, str) else None
+    if (
+        service is None
+        or service.data.get(CONF_ENTRY_TYPE) != ENTRY_TYPE_SERVICE
+        or profile is None
+        or profile.subentry_type != "conversation"
+    ):
+        return [_result(
+            "srv.external_transport.configured",
+            CAT_EXTERNAL_TRANSPORT,
+            "External Transport configured",
+            "fail",
+            detail="External Transport is selected, but this Satellite has no valid service/profile assignment.",
+            remediation="Configure this Satellite, select its External Conversation Service, then select a profile from that service.",
+        )]
+
+    url = service.data.get(CONF_EXTERNAL_TRANSPORT_URL)
+    token = service.data.get(CONF_EXTERNAL_TRANSPORT_TOKEN)
     if not isinstance(url, str) or not url.strip() or not isinstance(token, str) or not token.strip():
         return [_result(
             "srv.external_transport.configured",
             CAT_EXTERNAL_TRANSPORT,
             "External Transport configured",
             "fail",
-            detail="External Transport is selected, but its endpoint or credential is missing.",
-            remediation="Open the integration's Configure page and provide both the External Transport URL and token.",
+            detail="The assigned External Conversation Service is missing its endpoint or credential.",
+            remediation="Reconfigure the External Conversation Service and provide both the External Transport URL and bearer token.",
         )]
 
     out = [_result(
@@ -316,9 +345,9 @@ def _check_external_transport(entity: Any, selected: bool) -> list[dict[str, Any
         CAT_EXTERNAL_TRANSPORT,
         "External Transport configured",
         "pass",
-        detail="Endpoint and credential are configured (values redacted).",
+        detail=f"Service '{service.title}' and profile '{profile.title}' are configured (endpoint and credential redacted).",
     )]
-    if not options.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True):
+    if not service.data.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True):
         out.append(_result(
             "srv.external_transport.tls",
             CAT_EXTERNAL_TRANSPORT,
@@ -376,7 +405,7 @@ async def _check_entity_and_pipeline(
     ))
 
     external_transport = entity.uses_external_transport
-    out.extend(_check_external_transport(entity, external_transport))
+    out.extend(_check_external_transport(hass, entity, external_transport))
     if external_transport:
         # External Transport receives native PCM directly, so Assist pipeline
         # engine checks would be misleading for this selected route.
