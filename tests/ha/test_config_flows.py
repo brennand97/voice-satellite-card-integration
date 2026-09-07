@@ -119,7 +119,7 @@ def test_profile_prompt_uses_a_multiline_text_selector() -> None:
     from homeassistant.helpers.selector import TextSelector
 
     flow = object.__new__(ExternalConversationProfileFlow)
-    flow.source = "reconfigure"
+    flow.context = {"source": "reconfigure"}
     flow._options = {"initial_prompt": "A detailed instruction."}
     schema = flow._schema().schema
     selector = next(
@@ -180,8 +180,14 @@ def test_satellite_assignment_schemas_are_service_first_and_filter_profiles() ->
             },
         },
     )()
-    flow = object.__new__(VoiceSatelliteOptionsFlow)
-    flow.config_entry = type("Satellite", (), {"options": {}})()
+    satellite = type("Satellite", (), {"options": {}})()
+
+    class AssignmentFlow(VoiceSatelliteOptionsFlow):
+        @property
+        def config_entry(self):
+            return satellite
+
+    flow = object.__new__(AssignmentFlow)
     flow.hass = type(
         "Hass",
         (),

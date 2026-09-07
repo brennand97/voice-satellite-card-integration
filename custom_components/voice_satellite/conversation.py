@@ -10,6 +10,7 @@ from uuid import uuid4
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import MATCH_ALL
+from homeassistant.helpers import intent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import llm
@@ -26,6 +27,19 @@ from .const import (
 )
 from .external_transport.client import ExternalTransportClient
 from .external_transport.protocol import SessionStart
+
+
+def _converse_error(
+    user_input: conversation.ConversationInput, message: str
+) -> conversation.ConverseError:
+    """Create a current HA ConverseError with a safe user-facing response."""
+    response = intent.IntentResponse(language=getattr(user_input, "language", "") or "")
+    response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, message)
+    return conversation.ConverseError(
+        message,
+        conversation_id=user_input.conversation_id,
+        response=response,
+    )
 
 
 async def async_setup_entry(
@@ -79,7 +93,9 @@ class ExternalTransportConversationEntity(conversation.ConversationEntity):
         url = self._entry.data.get(CONF_EXTERNAL_TRANSPORT_URL, "")
         token = self._entry.data.get(CONF_EXTERNAL_TRANSPORT_TOKEN, "")
         if not isinstance(url, str) or not isinstance(token, str) or not url or not token:
-            raise conversation.ConverseError("External Conversation Service is not configured")
+            raise _converse_error(
+                user_input, "External Conversation Service is not configured"
+            )
         try:
             ready_timeout = float(
                 self._entry.data.get(CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5)
@@ -119,9 +135,13 @@ class ExternalTransportConversationEntity(conversation.ConversationEntity):
             capabilities = await client.connect()
             configured_profile = options.get(CONF_TOOL_PROFILE)
             if configured_profile is not None and capabilities.effective_profile != configured_profile:
-                raise conversation.ConverseError("External conversation profile was not accepted")
+                raise _converse_error(
+                    user_input, "External conversation profile was not accepted"
+                )
             if requested_tools is not None and not set(capabilities.effective_tools) <= set(requested_tools):
-                raise conversation.ConverseError("External conversation tool policy was widened")
+                raise _converse_error(
+                    user_input, "External conversation tool policy was widened"
+                )
             turn_id = str(uuid4())
             await client.start_turn(turn_id, "text")
             await client.write_text(turn_id, user_input.text)
@@ -139,7 +159,7 @@ class ExternalTransportConversationEntity(conversation.ConversationEntity):
                                 event = await anext(events)
                         else:
                             event = await anext(events)
-                    except TimeoutError:
+                    except (TimeoutError, StopAsyncIteration):
                         return
                     if event["type"] == "assistant.response_started":
                         response_finished = False
@@ -163,7 +183,7 @@ class ExternalTransportConversationEntity(conversation.ConversationEntity):
                     elif event["type"] == "assistant.response_finished":
                         response_finished = True
                     elif event["type"] == "error":
-                        raise conversation.ConverseError("External conversation failed")
+                        raise _converse_error(user_input, "External conversation failed")
         finally:
             await client.cancel_session("conversation_turn_finished")
             await client.close()
