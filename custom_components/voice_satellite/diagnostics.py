@@ -106,7 +106,7 @@ async def ws_run_diagnostics(
                 "Server diagnostics",
                 "fail",
                 detail=f"Server checks crashed: {err}",
-                remediation="File a bug at https://github.com/jxlarrea/voice-satellite-card-integration/issues",
+                remediation="File a bug at https://github.com/brennand97/voice-satellite-card-integration/issues",
             )
         )
 

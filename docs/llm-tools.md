@@ -1,9 +1,9 @@
 # Experimental: LLM Tools
 
-Voice Satellite supports displaying rich visual results from LLM tool calls inline during voice interactions. These features require the **[Voice Satellite - LLM Tools](https://github.com/jxlarrea/voice-satellite-card-llm-tools)** integration, which provides the tools to your conversation agent.
+Voice Satellite supports displaying rich visual results from LLM tool calls inline during voice interactions. These features require the **[Voice Satellite - LLM Tools](https://github.com/brennand97/voice-satellite-card-llm-tools)** integration, which provides the tools to your conversation agent.
 
 > **Requirements:**
-> - Install the **[Voice Satellite - LLM Tools](https://github.com/jxlarrea/voice-satellite-card-llm-tools)** integration, which provides the search tools to your conversation agent.
+> - Install the **[Voice Satellite - LLM Tools](https://github.com/brennand97/voice-satellite-card-llm-tools)** integration, which provides the search tools to your conversation agent.
 > - Your Assist pipeline must use a **conversational AI agent** (e.g., OpenAI, Google Generative AI, Anthropic, Ollama, etc.). The built-in Home Assistant conversation agent does not support tool calling and cannot use these features.
 
 ## Contents
@@ -19,7 +19,7 @@ Voice Satellite supports displaying rich visual results from LLM tool calls inli
 ## Image Search
 
 <p align="center">
-   <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/cats.jpg" alt="Image Search" width="650"/>
+   <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/cats.jpg" alt="Image Search" width="650"/>
 </p>
 
 Ask your assistant to search for images:
@@ -32,7 +32,7 @@ Results appear as a thumbnail grid in the media panel. Tap any image to view it 
 ## Video Search
 
 <p align="center">
-   <img src="https://github.com/jxlarrea/voice-satellite-card-integration/blob/main/assets/screenshots/mrbeast.jpg" alt="Video Search" width="650"/>
+   <img src="https://github.com/brennand97/voice-satellite-card-integration/blob/main/assets/screenshots/mrbeast.jpg" alt="Video Search" width="650"/>
 </p>
 
 Ask your assistant to search for videos:
@@ -63,7 +63,7 @@ The assistant responds with a summary from the Wikipedia article. If the article
 ## Weather Forecast
 
 <p align="center">
-   <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/weather2.jpg" alt="Weather" width="650"/>
+   <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/weather2.jpg" alt="Weather" width="650"/>
 </p>
 
 Ask your assistant about the weather:
@@ -76,7 +76,7 @@ The assistant responds with a spoken summary while displaying a weather card in 
 ## Financial Data
 
 <p align="center">
-   <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/currency2.jpg" alt="Stocks" width="650"/>
+   <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/currency2.jpg" alt="Stocks" width="650"/>
 </p>
 
 Ask your assistant about stocks, crypto, or currency conversions:

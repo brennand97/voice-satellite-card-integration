@@ -1788,7 +1788,7 @@ class VoiceSatellitePanel extends HTMLElement {
         </div>
         <div class="${P}-toolbar-right">
           <span class="${P}-toolbar-version">v${VERSION}</span>
-          <a class="${P}-toolbar-help" href="https://github.com/jxlarrea/voice-satellite-card-integration/blob/main/README.md" target="_blank" rel="noopener noreferrer">
+          <a class="${P}-toolbar-help" href="https://github.com/brennand97/voice-satellite-card-integration/blob/main/README.md" target="_blank" rel="noopener noreferrer">
             <ha-icon icon="mdi:help-circle-outline"></ha-icon>
           </a>
         </div>
@@ -1992,10 +1992,10 @@ class VoiceSatellitePanel extends HTMLElement {
 
       <div class="${P}-footer">
         <span>Made with <span class="${P}-footer-heart">&#9829;</span> by
-          <a href="https://github.com/jxlarrea" target="_blank" rel="noopener noreferrer">Xavier Larrea</a>
+          <a href="https://github.com/brennand97" target="_blank" rel="noopener noreferrer">Xavier Larrea</a>
         </span>
         <span class="${P}-footer-sep">·</span>
-        <a href="https://buymeacoffee.com/jxlarrea" target="_blank" rel="noopener noreferrer">&#9749; Buy me a coffee</a>
+        <a href="https://buymeacoffee.com/brennand97" target="_blank" rel="noopener noreferrer">&#9749; Buy me a coffee</a>
       </div>
 
       </div>

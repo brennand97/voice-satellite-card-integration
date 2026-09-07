@@ -16,7 +16,7 @@ Theming the overlay (skins, custom CSS) and replacing the built-in chime sounds.
 
 Voice Satellite includes a skin system that themes the entire overlay UI - activity bar, text display, timers, and background. Select a skin in the sidebar panel under **Advanced**.
 
-<img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/skins.jpg" alt="Skins" width="100%"/>
+<img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/skins.jpg" alt="Skins" width="100%"/>
 
 ### Built-in Skins
 
@@ -67,8 +67,8 @@ The Waveform skin exposes CSS variables for full color customization of strands,
 <summary><strong>Example: monochrome theme</strong></summary>
 
 <p align="center">
- <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/waveform_mono_light.jpg" alt="Waveform Skin Light Monochrome" width="49%"/>
- <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/waveform_mono_dark.jpg" alt="Waveform Skin Dark Monochrome" width="49%"/>
+ <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/waveform_mono_light.jpg" alt="Waveform Skin Light Monochrome" width="49%"/>
+ <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/waveform_mono_dark.jpg" alt="Waveform Skin Dark Monochrome" width="49%"/>
 </p>
 
 ```css

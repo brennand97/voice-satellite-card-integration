@@ -24,7 +24,7 @@ Per-device behavior (pipeline, wake word, TTS output, etc.) is configured on the
 The sidebar panel is the central configuration hub for Voice Satellite.
 
 <p align="center">
-   <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/sidepanel.png" alt="Sidebar Panel" width="650"/>
+   <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/sidepanel.png" alt="Sidebar Panel" width="650"/>
 </p>
 
 ### Engine Status
@@ -79,7 +79,7 @@ Per-satellite browser profile for overlay appearance, microphone processing, tim
 
 A browser overlay that kicks in after an idle timeout. Configured per-browser in the sidebar panel; automatically dismissed on voice interaction, tap, or kiosk app motion detection (Kiosk Satellite, Fully Kiosk). Hardware backlight dimming works in Kiosk Satellite, Fully Kiosk (Android), and Kiosker Pro (iOS). Does not activate while the engine is stopped.
 
-Inside [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) the app can run its own screensaver instead: while the app's screensaver is enabled and its "Turn off the Voice Satellite screensaver" toggle is on (the default), the Voice Satellite screensaver stands down automatically and a notice appears under the toggle below explaining why.
+Inside [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite) the app can run its own screensaver instead: while the app's screensaver is enabled and its "Turn off the Voice Satellite screensaver" toggle is on (the default), the Voice Satellite screensaver stands down automatically and a notice appears under the toggle below explaining why.
 
 | Setting | Description |
 |---------|-------------|
@@ -104,7 +104,7 @@ Inside [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) the app ca
 `voice-satellite-mini-card` is a text-first dashboard card that shows conversation status and transcripts inline. It shares the global engine - no separate entity or microphone configuration needed.
 
 <p align="center">
-   <img src="https://raw.githubusercontent.com/jxlarrea/voice-satellite-card-integration/refs/heads/main/assets/screenshots/minicard.png" alt="Mini card" width="650"/>
+   <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/minicard.png" alt="Mini card" width="650"/>
 </p>
 
 ### Modes

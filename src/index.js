@@ -27,7 +27,7 @@ window.customCards.push({
   name: t(null, 'cards.mini_name', 'Voice Satellite Mini Card'),
   description: t(null, 'cards.mini_description', 'Text-only in-card voice satellite (compact or tall)'),
   preview: false,
-  documentationURL: 'https://github.com/jxlarrea/voice-satellite-card-integration',
+  documentationURL: 'https://github.com/brennand97/voice-satellite-card-integration',
 });
 
 // Start the global engine (runs on every page, not just dashboards with cards)
