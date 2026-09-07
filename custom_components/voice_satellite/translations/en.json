@@ -84,6 +84,22 @@
   },
   "options": {
     "step": {
+      "service": {
+        "title": "Reconfigure External Conversation Service",
+        "description": "Update the shared External Transport connection. Leave the bearer token blank to retain the existing token.",
+        "data": {
+          "external_transport_url": "External Transport WebSocket URL",
+          "external_transport_token": "Replace bearer token (optional)",
+          "external_transport_verify_tls": "Verify TLS certificate",
+          "external_transport_ready_timeout": "Connection timeout (seconds)"
+        },
+        "data_description": {
+          "external_transport_url": "The wss:// URL ending in /transport/v1.",
+          "external_transport_token": "Leave blank to keep the existing secret. Enter a value only to replace it.",
+          "external_transport_verify_tls": "Leave enabled unless the server uses a deliberately trusted private certificate.",
+          "external_transport_ready_timeout": "How long Home Assistant waits for the service to accept a session."
+        }
+      },
       "init": {
         "title": "Choose External Conversation Service",
         "description": "Choose the shared service that holds the External Transport URL and bearer token. You will choose one of that service's conversation profiles next.",

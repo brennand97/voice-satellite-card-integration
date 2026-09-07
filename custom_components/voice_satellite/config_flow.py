@@ -138,8 +138,82 @@ class VoiceSatelliteConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        """Return integration options, including external transport settings."""
+        """Return the editor appropriate for a Satellite or shared service."""
+        if config_entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE:
+            return ExternalConversationServiceOptionsFlow()
         return VoiceSatelliteOptionsFlow()
+
+
+class ExternalConversationServiceOptionsFlow(OptionsFlow):
+    """Reconfigure the connection owned by an External Conversation Service."""
+
+    async def async_step_init(
+        self, user_input: dict[str, object] | None = None
+    ) -> ConfigFlowResult:
+        return await self.async_step_service(user_input)
+
+    async def async_step_service(
+        self, user_input: dict[str, object] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            url = str(user_input.get(CONF_EXTERNAL_TRANSPORT_URL, "")).strip()
+            token = str(user_input.get(CONF_EXTERNAL_TRANSPORT_TOKEN, "")).strip()
+            if not url:
+                return self.async_show_form(
+                    step_id="service",
+                    data_schema=self._schema(),
+                    errors={"base": "external_transport_credentials_incomplete"},
+                )
+            data = dict(self.config_entry.data)
+            data[CONF_EXTERNAL_TRANSPORT_URL] = url
+            if token:
+                data[CONF_EXTERNAL_TRANSPORT_TOKEN] = token
+            data[CONF_EXTERNAL_TRANSPORT_VERIFY_TLS] = bool(
+                user_input.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True)
+            )
+            data[CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT] = int(
+                user_input.get(CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5)
+            )
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                data=data,
+                options={
+                    key: value
+                    for key, value in self.config_entry.options.items()
+                    if key
+                    not in {
+                        CONF_EXTERNAL_TRANSPORT_URL,
+                        CONF_EXTERNAL_TRANSPORT_TOKEN,
+                        CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
+                        CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT,
+                    }
+                },
+            )
+            return self.async_create_entry(title="", data={})
+        return self.async_show_form(step_id="service", data_schema=self._schema())
+
+    def _schema(self) -> vol.Schema:
+        return vol.Schema(
+            {
+                vol.Required(
+                    CONF_EXTERNAL_TRANSPORT_URL,
+                    default=self.config_entry.data.get(CONF_EXTERNAL_TRANSPORT_URL, ""),
+                ): str,
+                vol.Optional(CONF_EXTERNAL_TRANSPORT_TOKEN, default=""): str,
+                vol.Optional(
+                    CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
+                    default=self.config_entry.data.get(
+                        CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT,
+                    default=self.config_entry.data.get(
+                        CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT, 5
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+            }
+        )
 
 
 class VoiceSatelliteOptionsFlow(OptionsFlow):
