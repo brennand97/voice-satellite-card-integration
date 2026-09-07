@@ -10,13 +10,9 @@
 <a href="https://github.com/brennand97/voice-satellite-card-integration/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/brennand97/voice-satellite-card-integration/release.yml?style=for-the-badge&label=Build" alt="Build"></a>
 </p>
 
-<p align="center">
-<a href="https://buymeacoffee.com/brennand97"><img src="https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee"></a>
-</p>
-
 ## Fork-specific features
 
-This repository is a downstream fork of [brennand97/voice-satellite-card-integration](https://github.com/brennand97/voice-satellite-card-integration). It regularly merges upstream changes while maintaining the following additions:
+This repository is a downstream fork of [jxlarrea/voice-satellite-card-integration](https://github.com/jxlarrea/voice-satellite-card-integration). It regularly merges upstream changes while maintaining the following additions:
 
 - **External Transport** — a provider-neutral conversation transport alongside the normal Home Assistant Assist pipeline. It is intended for a separately hosted voice service; Voice Satellite itself does not depend on Pipecat, OpenAI, or another specific provider.
 - **Native Kiosk Satellite audio relay** — when External Transport is selected, Kiosk Satellite's existing binary PCM path and wake-word pre-roll are relayed from Home Assistant to the external service without routing continuous microphone audio through the dashboard WebView.
@@ -46,9 +42,9 @@ Voice Satellite runs as a **global engine** that loads on every page of Home Ass
 - **Skins** - 9 built-in skins (Default, Alexa, Google Home, Home Assistant, Ink Blobs, Lens Flares, Retro Terminal, Siri, Waveform) with CSS overrides. Reactive audio-level animation on the activity bar
 - **Screensaver** - black overlay, image/video/folder from the HA media library, or live camera feed. Cross-fades between folder items; integrates with kiosk app backlight dimming and motion-dismiss (Kiosk Satellite, Fully Kiosk)
 - **Mini card** - optional `voice-satellite-mini-card` for in-dashboard text display without the fullscreen overlay
-- **LLM tools** *(experimental)* - image/video/web/Wikipedia search, weather, stocks/crypto with visual panels. Requires [Voice Satellite - LLM Tools](https://github.com/brennand97/voice-satellite-card-llm-tools)
+- **LLM tools** *(experimental)* - image/video/web/Wikipedia search, weather, stocks/crypto with visual panels. Requires [Voice Satellite - LLM Tools](https://github.com/jxlarrea/voice-satellite-card-llm-tools)
 - **Works on any device** - tablets, phones, computers, kiosks
-- **Kiosk Satellite companion app** - on Android, the free official [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite) app runs wake word detection natively: it keeps listening with the screen off or another app in front, starts on boot, and assigns the satellite entity automatically during its setup wizard
+- **Kiosk Satellite companion app** - on Android, the free official [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) app runs wake word detection natively: it keeps listening with the screen off or another app in front, starts on boot, and assigns the satellite entity automatically during its setup wizard
 
 ## Screenshots
 
@@ -61,7 +57,7 @@ Voice Satellite runs as a **global engine** that loads on every page of Home Ass
 
 ## Wall Tablet? Meet Kiosk Satellite
 
-On an Android tablet, the best way to run Voice Satellite is [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite) - the free official companion kiosk app, built specifically for Home Assistant. Voice Satellite detects it is running inside Kiosk Satellite and hands wake word detection over to the app's native engine automatically. You keep configuring everything in Voice Satellite as usual; the app's setup wizard even assigns the satellite entity for you.
+On an Android tablet, the best way to run Voice Satellite is [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) - the free official companion kiosk app, built specifically for Home Assistant. Voice Satellite detects it is running inside Kiosk Satellite and hands wake word detection over to the app's native engine automatically. You keep configuring everything in Voice Satellite as usual; the app's setup wizard even assigns the satellite entity for you.
 
 Native detection removes the limits a browser puts on a wall tablet:
 
@@ -75,7 +71,7 @@ Native detection removes the limits a browser puts on a wall tablet:
 | Wake word on low-end hardware | ⚠️ Struggles | ✅ CPU only, no GPU needed |
 | Survives reboots | ⚠️ Manual relaunch | ✅ Start on boot |
 
-On top of the voice side, Kiosk Satellite is a complete Home Assistant kiosk: lockdown with an exit gesture and PIN, screensavers, scheduled light/dark themes, and a full remote web admin. Grab the APK from its [releases page](https://github.com/brennand97/kiosk-satellite/releases).
+On top of the voice side, Kiosk Satellite is a complete Home Assistant kiosk: lockdown with an exit gesture and PIN, screensavers, scheduled light/dark themes, and a full remote web admin. Grab the APK from its [releases page](https://github.com/jxlarrea/kiosk-satellite/releases).
 
 Not on Android, or already invested in another kiosk app? [Fully Kiosk Browser](https://play.google.com/store/apps/details?id=de.ozerov.fully) (Android) and [Kiosker Pro](https://kiosker.io) (iOS) remain fully supported, including screensaver backlight dimming and (Fully Kiosk) motion-dismiss.
 
@@ -91,10 +87,10 @@ Not on Android, or already invested in another kiosk app? [Fully Kiosk Browser](
 Voice Satellite requires microphone access, so make sure that:
 
 1. **The browser has microphone permissions granted** - you will be prompted on first use.
-2. **The page is served over HTTPS** - required for microphone access in modern browsers. (Inside [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite) this requirement disappears: its built-in secure context proxy makes the microphone work even on an http-only instance.)
-3. **The screen stays on** - if the device screen turns off completely, the microphone will stop working. Use a screensaver instead of screen-off to keep the mic active. (Inside [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite) this limit disappears: detection is native and keeps running with the screen off.)
+2. **The page is served over HTTPS** - required for microphone access in modern browsers. (Inside [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) this requirement disappears: its built-in secure context proxy makes the microphone work even on an http-only instance.)
+3. **The screen stays on** - if the device screen turns off completely, the microphone will stop working. Use a screensaver instead of screen-off to keep the mic active. (Inside [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) this limit disappears: detection is native and keeps running with the screen off.)
 
-On Android, the recommended kiosk app is [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite): microphone access and audio autoplay are handled by the app out of the box, and wake word detection runs natively. For other kiosk setups like [Fully Kiosk Browser](https://play.google.com/store/apps/details?id=de.ozerov.fully) (Android) or [Kiosker Pro](https://kiosker.io) (iOS), make sure to enable microphone permissions and use the screensaver feature (not screen off) to keep the microphone active while dimming the display.
+On Android, the recommended kiosk app is [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite): microphone access and audio autoplay are handled by the app out of the box, and wake word detection runs natively. For other kiosk setups like [Fully Kiosk Browser](https://play.google.com/store/apps/details?id=de.ozerov.fully) (Android) or [Kiosker Pro](https://kiosker.io) (iOS), make sure to enable microphone permissions and use the screensaver feature (not screen off) to keep the microphone active while dimming the display.
 
 For the **Home Assistant Companion App** on **Android**, enable **Autoplay videos** in Settings -> Companion App -> Other settings. On **iOS**, go to Settings -> Companion App -> Debugging -> **WKWebView Media Playback** and make sure both **Audio** and **Video** are **unchecked**. Without these settings, the WebView will block TTS audio playback.
 
@@ -161,7 +157,7 @@ Three on-device engines are available, all running in pure JavaScript so audio i
 
 microWakeWord is the default for fresh installs because it works on every device. On devices that support WebGPU, **vsWakeWord is the recommended engine for wall-mounted tablets** - the models were designed for exactly that scenario. Pick openWakeWord when you need a keyword that vsWakeWord doesn't ship yet, or when you want the official HA OWW addon's behavior. All three engines run well under the real-time budget. Up to two wake words can run in parallel on any engine, each routed to its own Assist pipeline. "Disabled" mode keeps the mic completely off for automation-driven setups.
 
-Inside [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite), Voice Satellite hands detection over to the app's native engine automatically - same engine choice, same models, nothing to reconfigure - and detection keeps running with the screen off or the app in the background, at a fraction of the browser's CPU cost.
+Inside [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite), Voice Satellite hands detection over to the app's native engine automatically - same engine choice, same models, nothing to reconfigure - and detection keeps running with the screen off or the app in the background, at a fraction of the browser's CPU cost.
 
 See the [Wake Word reference](docs/wake-word.md) for the full engine comparison, built-in models, custom model loading, dual wake words / pipelines, and disabled mode.
 
@@ -183,7 +179,7 @@ See the [Timers reference](docs/timers.md) for voice sentences, the action schem
 
 ## Experimental: LLM Tools
 
-With a tool-capable conversation agent (OpenAI, Google Generative AI, Anthropic, Ollama, etc.) plus the companion [Voice Satellite - LLM Tools](https://github.com/brennand97/voice-satellite-card-llm-tools) integration, Voice Satellite can display rich visual results inline: image grids, YouTube video cards, weather forecasts, stock/crypto cards, currency conversions, and web/Wikipedia summaries with featured images.
+With a tool-capable conversation agent (OpenAI, Google Generative AI, Anthropic, Ollama, etc.) plus the companion [Voice Satellite - LLM Tools](https://github.com/jxlarrea/voice-satellite-card-llm-tools) integration, Voice Satellite can display rich visual results inline: image grids, YouTube video cards, weather forecasts, stock/crypto cards, currency conversions, and web/Wikipedia summaries with featured images.
 
 See the [LLM Tools reference](docs/llm-tools.md) for each supported tool and the voice commands that trigger them.
 

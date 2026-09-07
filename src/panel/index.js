@@ -1992,10 +1992,8 @@ class VoiceSatellitePanel extends HTMLElement {
 
       <div class="${P}-footer">
         <span>Made with <span class="${P}-footer-heart">&#9829;</span> by
-          <a href="https://github.com/brennand97" target="_blank" rel="noopener noreferrer">Xavier Larrea</a>
+          <a href="https://github.com/brennand97" target="_blank" rel="noopener noreferrer">brennand97</a>
         </span>
-        <span class="${P}-footer-sep">·</span>
-        <a href="https://buymeacoffee.com/brennand97" target="_blank" rel="noopener noreferrer">&#9749; Buy me a coffee</a>
       </div>
 
       </div>

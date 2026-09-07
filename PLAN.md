@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-Maintain a downstream fork of [`brennand97/voice-satellite-card-integration`](https://github.com/brennand97/voice-satellite-card-integration) that adds a provider-neutral **External Transport** while preserving the original Home Assistant Assist behavior.
+Maintain a downstream fork of [`jxlarrea/voice-satellite-card-integration`](https://github.com/jxlarrea/voice-satellite-card-integration) that adds a provider-neutral **External Transport** while preserving the original Home Assistant Assist behavior.
 
 The fork will continue to receive and merge upstream changes. Its downstream implementation must use generic external-transport terminology and must not couple Voice Satellite to Pipecat, OpenAI, or any other specific agent framework.
 
@@ -54,7 +54,7 @@ Recommended remotes:
 
 ```text
 origin    -> the owner's GitHub fork
-upstream  -> https://github.com/brennand97/voice-satellite-card-integration.git
+upstream  -> https://github.com/jxlarrea/voice-satellite-card-integration.git
 ```
 
 Recommended branches:
