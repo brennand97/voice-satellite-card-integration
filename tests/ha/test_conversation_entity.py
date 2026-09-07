@@ -120,6 +120,35 @@ async def test_text_conversation_is_text_only_and_uses_exact_requested_tools(has
     assert "close" in client.calls
 
 
+async def test_text_conversation_does_not_append_streamed_final_twice(hass) -> None:
+    client = FakeClient(
+        SimpleNamespace(effective_profile="home-generic", effective_tools=()),
+        events=(
+            {"type": "assistant.text.delta", "text": "The lights are on."},
+            {"type": "assistant.text.final", "text": "The lights are on."},
+            {"type": "assistant.response_finished"},
+        ),
+    )
+    with (
+        patch(
+            "custom_components.voice_satellite.conversation.async_get_clientsession",
+            return_value=object(),
+        ),
+        patch(
+            "custom_components.voice_satellite.conversation.ExternalTransportClient",
+            return_value=client,
+        ),
+    ):
+        deltas = [
+            delta
+            async for delta in _entity(hass)._event_deltas(
+                SimpleNamespace(conversation_id="conversation-id", text="Hi")
+            )
+        ]
+
+    assert deltas == [{"content": "The lights are on."}]
+
+
 async def test_text_conversation_rejects_server_policy_widening_and_cleans_up(hass) -> None:
     client = FakeClient(
         SimpleNamespace(

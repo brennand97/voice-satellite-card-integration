@@ -148,6 +148,7 @@ class ExternalTransportConversationEntity(conversation.ConversationEntity):
             await client.end_turn(turn_id)
             events = client.events()
             response_finished = False
+            streamed_text = False
             async with asyncio.timeout(60):
                 while True:
                     try:
@@ -164,8 +165,12 @@ class ExternalTransportConversationEntity(conversation.ConversationEntity):
                     if event["type"] == "assistant.response_started":
                         response_finished = False
                     elif event["type"] == "assistant.text.delta":
+                        streamed_text = True
                         yield {"content": event["text"]}
-                    elif event["type"] == "assistant.text.final":
+                    elif event["type"] == "assistant.text.final" and not streamed_text:
+                        # Deltas are already appended by ChatLog. The final is
+                        # the provider's complete copy of those same deltas,
+                        # so only use it as a fallback for non-streaming output.
                         yield {"role": "assistant", "content": event["text"]}
                     elif event["type"] == "assistant.tool_call_started":
                         # Pipecat already executed this provider tool. Mark it
