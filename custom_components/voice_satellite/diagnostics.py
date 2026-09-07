@@ -21,6 +21,7 @@ report most.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,7 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     CONF_CONVERSATION_PROFILE_ID,
@@ -291,7 +293,7 @@ def _check_version(bundle_version: str | None) -> list[dict[str, Any]]:
 # ── Entity + pipeline ───────────────────────────────────────────────
 
 
-def _check_external_transport(
+async def _check_external_transport(
     hass: HomeAssistant, entity: Any, selected: bool
 ) -> list[dict[str, Any]]:
     """Report the assigned shared service without disclosing credentials."""
@@ -364,13 +366,40 @@ def _check_external_transport(
             "pass",
             detail="TLS certificate verification is enabled.",
         ))
-    out.append(_result(
-        "srv.external_transport.connection",
-        CAT_EXTERNAL_TRANSPORT,
-        "External Transport connection",
-        "skip",
-        detail="Connectivity is verified when a voice session starts; diagnostics does not contact the endpoint.",
-    ))
+    try:
+        session = async_get_clientsession(
+            hass,
+            verify_ssl=bool(service.data.get(CONF_EXTERNAL_TRANSPORT_VERIFY_TLS, True)),
+        )
+        async with asyncio.timeout(5):
+            websocket = await session.ws_connect(
+                url, headers={"Authorization": f"Bearer {token}"}
+            )
+            await websocket.close()
+    except Exception as err:  # Never expose the URL or bearer token in diagnostics.
+        status = getattr(err, "status", None)
+        if status in {401, 403}:
+            detail = "The service rejected the bearer token during the WebSocket handshake."
+            remediation = "Reconfigure the External Conversation Service with its current External Transport bearer token."
+        else:
+            detail = "Could not complete an authenticated WebSocket handshake within 5 seconds."
+            remediation = "Verify the WebSocket URL ends in /transport/v1, TLS settings, reverse-proxy routing, and service availability."
+        out.append(_result(
+            "srv.external_transport.connection",
+            CAT_EXTERNAL_TRANSPORT,
+            "Authenticated External Transport connection",
+            "fail",
+            detail=detail,
+            remediation=remediation,
+        ))
+    else:
+        out.append(_result(
+            "srv.external_transport.connection",
+            CAT_EXTERNAL_TRANSPORT,
+            "Authenticated External Transport connection",
+            "pass",
+            detail="The service accepted an authenticated WebSocket handshake; no conversation session was started.",
+        ))
     return out
 
 
@@ -405,7 +434,7 @@ async def _check_entity_and_pipeline(
     ))
 
     external_transport = entity.uses_external_transport
-    out.extend(_check_external_transport(hass, entity, external_transport))
+    out.extend(await _check_external_transport(hass, entity, external_transport))
     if external_transport:
         # External Transport receives native PCM directly, so Assist pipeline
         # engine checks would be misleading for this selected route.

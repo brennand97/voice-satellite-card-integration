@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlsplit
 
 import voluptuous as vol
 
@@ -33,6 +34,18 @@ from .const import (
     DOMAIN,
     ENTRY_TYPE_SERVICE,
 )
+
+
+def _is_transport_url(value: str) -> bool:
+    """Accept only the External Transport v1 WebSocket endpoint."""
+    parsed = urlsplit(value)
+    return (
+        parsed.scheme in {"ws", "wss"}
+        and bool(parsed.netloc)
+        and parsed.path.rstrip("/") == "/transport/v1"
+        and not parsed.query
+        and not parsed.fragment
+    )
 
 
 class VoiceSatelliteConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -92,6 +105,8 @@ class VoiceSatelliteConfigFlow(ConfigFlow, domain=DOMAIN):
             token = str(user_input[CONF_EXTERNAL_TRANSPORT_TOKEN]).strip()
             if not name or not url or not token:
                 return self.async_show_form(step_id="external_service", data_schema=self._service_schema(), errors={"base": "external_transport_credentials_incomplete"})
+            if not _is_transport_url(url):
+                return self.async_show_form(step_id="external_service", data_schema=self._service_schema(), errors={"base": "invalid_external_transport_url"})
             return self.async_create_entry(
                 title=name,
                 data={
@@ -163,6 +178,12 @@ class ExternalConversationServiceOptionsFlow(OptionsFlow):
                     step_id="service",
                     data_schema=self._schema(),
                     errors={"base": "external_transport_credentials_incomplete"},
+                )
+            if not _is_transport_url(url):
+                return self.async_show_form(
+                    step_id="service",
+                    data_schema=self._schema(),
+                    errors={"base": "invalid_external_transport_url"},
                 )
             data = dict(self.config_entry.data)
             data[CONF_EXTERNAL_TRANSPORT_URL] = url

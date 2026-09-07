@@ -23,7 +23,7 @@ CONVERSATION_TRANSPORT_HOME_ASSISTANT: Final[str] = "Home Assistant"
 CONVERSATION_TRANSPORT_EXTERNAL: Final[str] = "External"
 
 # Version - synced from package.json by scripts/sync-version.js
-INTEGRATION_VERSION: str = "2026.9.5-fork.14"
+INTEGRATION_VERSION: str = "2026.9.5-fork.15"
 
 # Bus events fired for user automations
 EVENT_TIMER: Final[str] = "voice_satellite_timer"

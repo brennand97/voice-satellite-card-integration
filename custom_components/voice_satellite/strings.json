@@ -45,7 +45,8 @@
     },
     "error": {
       "external_transport_credentials_incomplete": "Set both the external transport URL and token, or leave both blank.",
-      "invalid_name": "Enter a non-empty satellite name."
+      "invalid_name": "Enter a non-empty satellite name.",
+      "invalid_external_transport_url": "Enter a WebSocket URL ending in /transport/v1 (for example, wss://voice-agent.example/transport/v1)."
     }
   },
   "config_subentries": {
@@ -125,7 +126,8 @@
       "invalid_profile_assignment": "The selected service or conversation profile is no longer available."
     },
     "error": {
-      "invalid_profile_assignment": "Select a valid service and a profile belonging to that service."
+      "invalid_profile_assignment": "Select a valid service and a profile belonging to that service.",
+      "invalid_external_transport_url": "Enter a WebSocket URL ending in /transport/v1 (for example, wss://voice-agent.example/transport/v1)."
     }
   },
   "entity": {
