@@ -115,14 +115,6 @@ async def test_service_creation_rejects_incomplete_credentials(hass) -> None:
     assert result["errors"] == {"base": "external_transport_credentials_incomplete"}
 
 
-@pytest.mark.parametrize(
-    ("requested_tools", "error"),
-    [
-        ("homeassistant__GetLiveContext, intent__HassTurnOn", None),
-        ("homeassistant__GetLiveContext\nhomeassistant__GetLiveContext", "invalid_requested_tools"),
-        ("intent__Hass*", "invalid_requested_tools"),
-    ],
-)
 def test_profile_prompt_uses_a_multiline_text_selector() -> None:
     from homeassistant.helpers.selector import TextSelector
 
@@ -139,6 +131,14 @@ def test_profile_prompt_uses_a_multiline_text_selector() -> None:
     assert selector.config.multiline is True
 
 
+@pytest.mark.parametrize(
+    ("requested_tools", "error"),
+    [
+        ("homeassistant__GetLiveContext, intent__HassTurnOn", None),
+        ("homeassistant__GetLiveContext\nhomeassistant__GetLiveContext", "invalid_requested_tools"),
+        ("intent__Hass*", "invalid_requested_tools"),
+    ],
+)
 def test_profile_input_parses_exact_tools_or_fails_closed(requested_tools, error) -> None:
     data = {
         "profile_name": "Home",
