@@ -123,6 +123,22 @@ async def test_service_creation_rejects_incomplete_credentials(hass) -> None:
         ("intent__Hass*", "invalid_requested_tools"),
     ],
 )
+def test_profile_prompt_uses_a_multiline_text_selector() -> None:
+    from homeassistant.helpers.selector import TextSelector
+
+    flow = object.__new__(ExternalConversationProfileFlow)
+    flow.source = "reconfigure"
+    flow._options = {"initial_prompt": "A detailed instruction."}
+    schema = flow._schema().schema
+    selector = next(
+        value
+        for key, value in schema.items()
+        if getattr(key, "schema", None) == "initial_prompt"
+    )
+    assert isinstance(selector, TextSelector)
+    assert selector.config.multiline is True
+
+
 def test_profile_input_parses_exact_tools_or_fails_closed(requested_tools, error) -> None:
     data = {
         "profile_name": "Home",

@@ -7,6 +7,11 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigSubentryFlow, SubentryFlowResult
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .const import (
     CONF_INITIAL_PROMPT,
@@ -66,8 +71,13 @@ class ExternalConversationProfileFlow(ConfigSubentryFlow):
                 CONF_TOOL_PROFILE, default=data.get(CONF_TOOL_PROFILE, "")
             ): str,
             vol.Optional(
-                CONF_INITIAL_PROMPT, default=data.get(CONF_INITIAL_PROMPT, "")
-            ): str,
+                CONF_INITIAL_PROMPT,
+                description={
+                    "suggested_value": data.get(CONF_INITIAL_PROMPT, "")
+                },
+            ): TextSelector(
+                TextSelectorConfig(multiline=True, type=TextSelectorType.TEXT)
+            ),
             vol.Optional(
                 CONF_INITIAL_VOICE, default=data.get(CONF_INITIAL_VOICE, "")
             ): str,
