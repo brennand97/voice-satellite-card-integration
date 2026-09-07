@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.voice_satellite.config_flow import VoiceSatelliteConfigFlow
+from custom_components.voice_satellite.config_flow import VoiceSatelliteOptionsFlow
 from custom_components.voice_satellite.const import (
     CONF_ENTRY_TYPE,
     CONF_EXTERNAL_TRANSPORT_READY_TIMEOUT,
@@ -140,6 +140,44 @@ def test_profile_input_parses_exact_tools_or_fails_closed(requested_tools, error
     else:
         with pytest.raises(ValueError, match=error):
             ExternalConversationProfileFlow._validate(data)
+
+
+def test_satellite_assignment_schemas_are_service_first_and_filter_profiles() -> None:
+    service = type(
+        "Service",
+        (),
+        {
+            "entry_id": "service-id",
+            "title": "Loki1 Pipecat",
+            "data": {"entry_type": ENTRY_TYPE_SERVICE},
+            "subentries": {
+                "profile-id": type(
+                    "Profile",
+                    (),
+                    {"subentry_type": "conversation", "title": "Default"},
+                )(),
+                "other-id": type(
+                    "Other",
+                    (),
+                    {"subentry_type": "not-a-conversation", "title": "Ignore"},
+                )(),
+            },
+        },
+    )()
+    flow = object.__new__(VoiceSatelliteOptionsFlow)
+    flow.config_entry = type("Satellite", (), {"options": {}})()
+    flow.hass = type(
+        "Hass",
+        (),
+        {"config_entries": type("Entries", (), {"async_entries": lambda *_: [service]})()},
+    )()
+
+    service_schema = flow._service_schema().schema
+    profile_schema = flow._profile_schema(service).schema
+    assert len(service_schema) == 1
+    assert len(profile_schema) == 1
+    assert "profile-id" in next(iter(profile_schema.values())).container
+    assert "other-id" not in next(iter(profile_schema.values())).container
 
 
 def test_profile_schema_uses_serializable_text_requested_tools_field() -> None:

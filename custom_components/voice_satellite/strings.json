@@ -85,14 +85,31 @@
   "options": {
     "step": {
       "init": {
-        "title": "External Transport",
+        "title": "Choose External Conversation Service",
+        "description": "Choose the shared service that holds the External Transport URL and bearer token. You will choose one of that service's conversation profiles next.",
         "data": {
-          "external_transport_url": "External transport WebSocket URL",
-          "external_transport_token": "External transport token",
-          "external_transport_verify_tls": "Verify TLS certificate",
-          "external_transport_ready_timeout": "External transport ready timeout (seconds)"
+          "conversation_service_entry_id": "External Conversation Service"
+        },
+        "data_description": {
+          "conversation_service_entry_id": "Select Loki1 Pipecat for the deployed Pipecat External Transport service."
+        }
+      },
+      "profile": {
+        "title": "Choose Conversation Profile",
+        "description": "Choose the policy/profile this Satellite will use with the selected service.",
+        "data": {
+          "conversation_profile_id": "Conversation profile"
+        },
+        "data_description": {
+          "conversation_profile_id": "Select the profile configured for this service, such as Pipecat External Conversation."
         }
       }
+    },
+    "abort": {
+      "invalid_profile_assignment": "The selected service or conversation profile is no longer available."
+    },
+    "error": {
+      "invalid_profile_assignment": "Select a valid service and a profile belonging to that service."
     }
   },
   "entity": {

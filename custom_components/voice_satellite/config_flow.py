@@ -143,47 +143,62 @@ class VoiceSatelliteConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class VoiceSatelliteOptionsFlow(OptionsFlow):
-    """Assign a Satellite to an existing shared conversation profile."""
+    """Assign a Satellite to one profile from a shared conversation service."""
+
+    _service_entry_id: str
 
     async def async_step_init(
         self, user_input: dict[str, object] | None = None
     ) -> ConfigFlowResult:
+        """Choose the parent service before exposing its profiles."""
         if user_input is not None:
-            service_entry_id = str(user_input.get(CONF_CONVERSATION_SERVICE_ENTRY_ID, ""))
-            profile_id = str(user_input.get(CONF_CONVERSATION_PROFILE_ID, ""))
+            service_entry_id = str(
+                user_input.get(CONF_CONVERSATION_SERVICE_ENTRY_ID, "")
+            )
             service = self.hass.config_entries.async_get_entry(service_entry_id)
-            profile = service.subentries.get(profile_id) if service is not None else None
-            if (
-                service is None
-                or service.data.get(CONF_ENTRY_TYPE) != ENTRY_TYPE_SERVICE
-                or profile is None
-                or profile.subentry_type != "conversation"
-            ):
+            if service is None or service.data.get(CONF_ENTRY_TYPE) != ENTRY_TYPE_SERVICE:
                 return self.async_show_form(
-                    step_id="init", data_schema=self._schema(), errors={"base": "invalid_profile_assignment"}
+                    step_id="init",
+                    data_schema=self._service_schema(),
+                    errors={"base": "invalid_profile_assignment"},
+                )
+            self._service_entry_id = service_entry_id
+            return await self.async_step_profile()
+        return self.async_show_form(step_id="init", data_schema=self._service_schema())
+
+    async def async_step_profile(
+        self, user_input: dict[str, object] | None = None
+    ) -> ConfigFlowResult:
+        """Choose a profile belonging to the selected service."""
+        service = self.hass.config_entries.async_get_entry(self._service_entry_id)
+        if service is None or service.data.get(CONF_ENTRY_TYPE) != ENTRY_TYPE_SERVICE:
+            return self.async_abort(reason="invalid_profile_assignment")
+        if user_input is not None:
+            profile_id = str(user_input.get(CONF_CONVERSATION_PROFILE_ID, ""))
+            profile = service.subentries.get(profile_id)
+            if profile is None or profile.subentry_type != "conversation":
+                return self.async_show_form(
+                    step_id="profile",
+                    data_schema=self._profile_schema(service),
+                    errors={"base": "invalid_profile_assignment"},
                 )
             return self.async_create_entry(
                 title="",
                 data={
-                    CONF_CONVERSATION_SERVICE_ENTRY_ID: service_entry_id,
+                    CONF_CONVERSATION_SERVICE_ENTRY_ID: self._service_entry_id,
                     CONF_CONVERSATION_PROFILE_ID: profile_id,
                 },
             )
-        return self.async_show_form(step_id="init", data_schema=self._schema())
+        return self.async_show_form(
+            step_id="profile", data_schema=self._profile_schema(service)
+        )
 
-    def _schema(self) -> vol.Schema:
+    def _service_schema(self) -> vol.Schema:
         options = self.config_entry.options
         services = {
             entry.entry_id: entry.title
             for entry in self.hass.config_entries.async_entries(DOMAIN)
             if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE
-        }
-        profiles = {
-            subentry.subentry_id: f"{entry.title}: {subentry.title}"
-            for entry in self.hass.config_entries.async_entries(DOMAIN)
-            if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_SERVICE
-            for subentry in entry.subentries.values()
-            if subentry.subentry_type == "conversation"
         }
         return vol.Schema(
             {
@@ -191,6 +206,18 @@ class VoiceSatelliteOptionsFlow(OptionsFlow):
                     CONF_CONVERSATION_SERVICE_ENTRY_ID,
                     default=options.get(CONF_CONVERSATION_SERVICE_ENTRY_ID),
                 ): vol.In(services),
+            }
+        )
+
+    def _profile_schema(self, service: ConfigEntry) -> vol.Schema:
+        options = self.config_entry.options
+        profiles = {
+            subentry.subentry_id: subentry.title
+            for subentry in service.subentries.values()
+            if subentry.subentry_type == "conversation"
+        }
+        return vol.Schema(
+            {
                 vol.Required(
                     CONF_CONVERSATION_PROFILE_ID,
                     default=options.get(CONF_CONVERSATION_PROFILE_ID),
