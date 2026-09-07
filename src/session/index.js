@@ -119,6 +119,9 @@ export class VoiceSatelliteSession {
       setPresentationState: (state) => setState(this, State[state.toUpperCase()]),
       showInteractionUi: () => this._uiProxy.showBlurOverlay(BlurReason.PIPELINE),
       hideInteractionUi: () => {
+        // Explicit/terminal External Transport stops must not leave an
+        // orphaned transcript after the listening UI has been dismissed.
+        this._chat?.clear?.();
         this._uiProxy.stopReactive();
         this._uiProxy.hideBar();
         this._uiProxy.hideBlurOverlay(BlurReason.PIPELINE);
