@@ -34,7 +34,9 @@ class SessionStart:
     initial_voice: str | None = None
     device_id: str | None = None
     input_modalities: tuple[str, ...] = ("audio", "text")
-    output_modalities: tuple[str, ...] = ("audio", "text")
+    # OpenAI Realtime accepts audio *or* text output, not both. Physical
+    # Satellites receive audio while user transcription remains input-side.
+    output_modalities: tuple[str, ...] = ("audio",)
 
     def as_message(self) -> dict[str, Any]:
         message: dict[str, Any] = {
