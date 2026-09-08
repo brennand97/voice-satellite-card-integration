@@ -160,6 +160,9 @@ export class ExternalSessionController {
     this._clearFollowupTimer();
     this._stopPlayback(reason);
     this._providerResponseId = this._providerTurnId = null;
+    // The server has already closed its consumer. Tear down the delegated HA
+    // run now so native PCM cannot continue filling its bounded audio queue.
+    this._stopPipeline(reason);
     this._hideInteractionUi();
     this._transition(ExternalState.TERMINATED);
   }

@@ -110,6 +110,16 @@ test('active state is exposed only while an External run can be stopped', () => 
   assert.equal(h.controller.isActive(), false);
 });
 
+test('server terminal event stops the pipeline before it can forward more PCM', () => {
+  const h = harness();
+  activePlayback(h);
+  h.controller.onTerminal('session_finished');
+
+  assert.equal(h.controller.state, ExternalState.TERMINATED);
+  assert.deepEqual(h.calls.filter(([name]) => name === 'stop'), [['stop', 'response-1', 'session_finished']]);
+  assert.deepEqual(h.calls.filter(([name]) => name === 'pipeline-stop'), [['pipeline-stop', 'session_finished']]);
+});
+
 test('explicit stop is terminal and cancels playback exactly once', () => {
   const h = harness();
   activePlayback(h);

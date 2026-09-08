@@ -121,6 +121,9 @@ export class TimerManager {
       const serverStartedAt = raw.started_at ? raw.started_at * 1000 : now;
 
       if (existing) {
+        // Names may change without a duration change (for example RenameTimer).
+        // Keep the rendered timer in sync with HA's authoritative projection.
+        existing.name = raw.name || '';
         // Trust the server's started_at as the source of truth. Comparing
         // total_seconds alone would miss UPDATED events that happen to
         // leave the remaining time unchanged (e.g. add then remove the
