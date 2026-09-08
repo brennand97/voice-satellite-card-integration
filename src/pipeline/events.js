@@ -467,9 +467,22 @@ export function handleTtsEnd(mgr, eventData) {
 }
 
 /** @param {import('./index.js').PipelineManager} mgr */
-export function handleRunEnd(mgr) {
-  mgr.log.log('pipeline', 'Run ended');
+export function handleRunEnd(mgr, eventData = {}) {
+  const terminalExternalSession = eventData?.external?.session_finished === true;
+  mgr.log.log('pipeline', terminalExternalSession ? 'External session ended' : 'Run ended');
   mgr.binaryHandlerId = null;
+
+  if (terminalExternalSession) {
+    // A server-owned EndSession closes the provider before the card receives
+    // this event. Do not defer cleanup for residual audio: continued native
+    // PCM would fill HA's bounded external queue after its consumer exits.
+    mgr.card.audio.stopSending();
+    try { mgr.card.tts.stop(); } catch (_) { /* best-effort terminal cleanup */ }
+    mgr.pendingRunEnd = false;
+    mgr.card.chat.clear();
+    mgr.finishRunEnd();
+    return;
+  }
 
   if (mgr.isRestarting) {
     mgr.log.log('pipeline', 'Restart already in progress - skipping run-end restart');

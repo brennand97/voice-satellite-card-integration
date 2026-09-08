@@ -199,7 +199,10 @@ def normalize_event(event: dict[str, Any]) -> dict[str, Any] | None:
         # native Kiosk PCM sender and make barge-in/follow-up impossible.
         return {"type": "external-response-finished", "data": {"external": meta}}
     if event_type == "session.finished":
-        return {"type": "run-end", "data": {}}
+        # This is a server-terminal session, unlike an ordinary completed
+        # response. The client must stop PCM immediately rather than defer
+        # run-end cleanup behind residual TTS playback.
+        return {"type": "run-end", "data": {"external": {"session_finished": True}}}
     if event_type == "error":
         return {"type": "error", "data": {"code": event.get("code", "external_transport_error"), "message": event.get("message", "External transport failed")}}
     return None

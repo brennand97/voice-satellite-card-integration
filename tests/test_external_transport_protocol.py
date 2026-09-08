@@ -120,6 +120,16 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(finished["type"], "external-tool-finished")
         self.assertEqual(finished["data"]["external"]["result"][0]["text"], "private result")
 
+    def test_server_session_finish_marks_terminal_external_cleanup(self) -> None:
+        event = protocol.normalize_event({"type": "session.finished"})
+        self.assertEqual(
+            event,
+            {
+                "type": "run-end",
+                "data": {"external": {"session_finished": True}},
+            },
+        )
+
     def test_interruption_maps_to_a_provider_neutral_card_event(self) -> None:
         event = protocol.normalize_event({"type": "assistant.interrupted", "audio_id": "a1"})
         self.assertEqual(event, {"type": "external-interrupted", "data": {}})

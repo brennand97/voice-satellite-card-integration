@@ -620,7 +620,7 @@ export class PipelineManager {
   handleIntentEnd(data) { handleIntentEnd(this, data); }
   handleTtsEnd(data) { handleTtsEnd(this, data); }
 
-  handleRunEnd() {
+  handleRunEnd(data) {
     if (!this._runStartReceived) {
       this._log.log('pipeline', 'Ignoring stale run-end (no run-start received for this subscription)');
       return;
@@ -633,7 +633,7 @@ export class PipelineManager {
       this.restart(0);
       return;
     }
-    handleRunEnd(this);
+    handleRunEnd(this, data);
   }
 
   handleError(data) {
