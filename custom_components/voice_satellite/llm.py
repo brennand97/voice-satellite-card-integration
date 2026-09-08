@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 import voluptuous as vol
@@ -50,6 +51,10 @@ def _duration(arguments: dict[str, Any]) -> int:
     return seconds
 
 
+def _timestamp() -> str:
+    return datetime.now(UTC).isoformat()
+
+
 def _status(timer: TimerInfo) -> dict[str, Any]:
     return {
         "id": timer.id,
@@ -84,7 +89,7 @@ class StartTimer(_DeviceTimerTool):
         success = await async_start_timer_for_device(hass, device_id=arguments["device_id"], name=arguments["name"], hours=arguments.get("hours", 0), minutes=arguments.get("minutes", 0), seconds=arguments.get("seconds", 0))
         if not success:
             raise HomeAssistantError("Timer was not started on this Voice Satellite.")
-        return {"success": True, "name": arguments["name"], "duration": {key: arguments.get(key, 0) for key in ("hours", "minutes", "seconds")}}
+        return {"success": True, "timestamp_utc": _timestamp(), "name": arguments["name"], "duration": {key: arguments.get(key, 0) for key in ("hours", "minutes", "seconds")}}
 
 
 class StopTimer(_DeviceTimerTool):
@@ -95,8 +100,9 @@ class StopTimer(_DeviceTimerTool):
     async def async_call(self, hass: HomeAssistant, tool_input: ToolInput, llm_context: LLMContext) -> dict[str, Any]:
         del llm_context
         manager = _timer_manager(hass); timer = _select_timer(manager, tool_input.tool_args["device_id"], tool_input.tool_args.get("name"))
+        previous = _status(timer)
         manager.cancel_timer(timer.id)
-        return {"success": True, "stopped": _status(timer)}
+        return {"success": True, "timestamp_utc": _timestamp(), "previous": previous, "stopped": True}
 
 
 class RenameTimer(_DeviceTimerTool):
@@ -107,10 +113,11 @@ class RenameTimer(_DeviceTimerTool):
     async def async_call(self, hass: HomeAssistant, tool_input: ToolInput, llm_context: LLMContext) -> dict[str, Any]:
         del llm_context
         manager = _timer_manager(hass); arguments = tool_input.tool_args; timer = _select_timer(manager, arguments["device_id"], arguments["name"])
+        previous = _status(timer)
         timer.name = arguments["new_name"]; timer.updated_at = time.monotonic_ns()
         if timer.device_id in manager.handlers:
             manager.handlers[timer.device_id](TimerEventType.UPDATED, timer)
-        return {"success": True, "timer": _status(timer)}
+        return {"success": True, "timestamp_utc": _timestamp(), "previous": previous, "timer": _status(timer)}
 
 
 class _AdjustTimer(_DeviceTimerTool):
@@ -119,11 +126,11 @@ class _AdjustTimer(_DeviceTimerTool):
 
     async def async_call(self, hass: HomeAssistant, tool_input: ToolInput, llm_context: LLMContext) -> dict[str, Any]:
         del llm_context
-        manager = _timer_manager(hass); arguments = tool_input.tool_args; timer = _select_timer(manager, arguments["device_id"], arguments.get("name")); delta = _duration(arguments)
-        if self.direction < 0 and delta >= timer.seconds_left:
+        manager = _timer_manager(hass); arguments = tool_input.tool_args; timer = _select_timer(manager, arguments["device_id"], arguments.get("name")); previous = _status(timer); delta = _duration(arguments)
+        if self.direction < 0 and delta >= previous["seconds_remaining"]:
             raise HomeAssistantError("Timer was not shortened because the requested reduction would leave no time remaining.")
         manager.add_time(timer.id, self.direction * delta)
-        return {"success": True, "relative_seconds": self.direction * delta, "timer": _status(timer)}
+        return {"success": True, "timestamp_utc": _timestamp(), "previous": previous, "relative_seconds": self.direction * delta, "timer": _status(timer)}
 
 
 class ExtendTimer(_AdjustTimer):
@@ -147,8 +154,8 @@ class GetTimerStatus(_DeviceTimerTool):
         del llm_context
         manager = _timer_manager(hass); arguments = tool_input.tool_args
         if arguments.get("name"):
-            return {"timers": [_status(_select_timer(manager, arguments["device_id"], arguments["name"]))]}
-        return {"timers": [_status(timer) for timer in manager.timers.values() if timer.device_id == arguments["device_id"]]}
+            return {"timestamp_utc": _timestamp(), "timers": [_status(_select_timer(manager, arguments["device_id"], arguments["name"]))]}
+        return {"timestamp_utc": _timestamp(), "timers": [_status(timer) for timer in manager.timers.values() if timer.device_id == arguments["device_id"]]}
 
 
 def async_get_tools(hass: HomeAssistant, llm_context: LLMContext, api_id: str) -> llm.LLMTools | None:
