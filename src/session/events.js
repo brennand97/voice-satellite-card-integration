@@ -793,7 +793,7 @@ export function handlePipelineMessage(session, message) {
       if (eventData.external?.response_id && eventData.external.response_id !== session._externalSession.providerResponseId
           && eventData.external.response_id !== session._externalSession.playbackResponseId) break;
       session._externalSession.onTerminal('run_end');
-      session.pipeline.handleRunEnd();
+      session.pipeline.handleRunEnd(eventData);
       break;
     case 'error': session.pipeline.handleError(eventData); break;
     case 'displaced':
