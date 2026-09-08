@@ -1806,6 +1806,7 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
                 if timer["id"] == timer_id:
                     updated.append({
                         **timer,
+                        "name": timer_info.name or "",
                         "total_seconds": new_total,
                         "started_at": time.time(),
                         "start_hours": timer_info.start_hours or 0,
