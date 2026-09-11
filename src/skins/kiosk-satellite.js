@@ -16,7 +16,7 @@ export const kioskSatelliteSkin = {
   reactiveBar: true,
   hasDarkTheme: true,
   overlayColor: [245, 244, 242],
-  darkOverlayColor: [32, 33, 36],
+  darkOverlayColor: [18, 19, 22],
   defaultOpacity: 1,
   darkDefaultOpacity: 1,
   previewCSS,
