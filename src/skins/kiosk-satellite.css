@@ -1,0 +1,1088 @@
+/* Kiosk Satellite Skin */
+
+/* Google Sans - latin-ext */
+@font-face {
+  font-family: 'Google Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/voice_satellite/fonts/google-sans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* Google Sans - latin */
+@font-face {
+  font-family: 'Google Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/voice_satellite/fonts/google-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Registered as a typed property so WebKit re-resolves styles that read it
+   through var() inside calc() and filter values, including on pseudo-elements.
+   Without registration, Safari/iOS webviews leave the reactive glow stuck at
+   its initial value while the analyser rewrites the variable each frame. */
+@property --vs-audio-level {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+/* ─── Theme tokens ─────────────────────────────────────────────── */
+
+/* Palette lifted from the Kiosk Satellite app (remote admin theme) and its
+   logo: warm neutral surfaces, a teal primary, and the four logo bar
+   colors (sky blue, amber, green, coral). */
+#voice-satellite-ui {
+  --ks-bar-1: #18bcf2;
+  --ks-bar-2: #f2b705;
+  --ks-bar-3: #3fbf5f;
+  --ks-bar-4: #e8604c;
+
+  --ks-primary: #488284;
+  --ks-accent: #44686c;
+  --ks-text: #212327;
+  --ks-text-dim: rgba(33, 35, 39, 0.5);
+  --ks-text-secondary: #5d6066;
+  --ks-text-muted: #7d8087;
+  --ks-surface: #ffffff;
+  --ks-surface-2: #e8e6e1;
+  --ks-divider: #e3e0da;
+  --ks-scrollbar: rgba(33, 35, 39, 0.25);
+  --ks-scrollbar-hover: rgba(33, 35, 39, 0.45);
+  --ks-progress: rgba(72, 130, 132, 0.18);
+  --ks-badge-bg: #d4e3e4;
+  --ks-badge-text: #1b3437;
+  --ks-shadow: rgba(0, 0, 0, 0.12);
+  --ks-shadow-soft: rgba(0, 0, 0, 0.06);
+  --ks-ok: #56814f;
+  --ks-error: #a9501f;
+
+  font-family: "Google Sans", Roboto, Noto, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#voice-satellite-ui.vs-dark {
+  --ks-primary: #488284;
+  --ks-accent: #7aa6aa;
+  --ks-text: #e8eaed;
+  --ks-text-dim: rgba(232, 234, 237, 0.5);
+  --ks-text-secondary: #b6babf;
+  --ks-text-muted: #9a9ea4;
+  --ks-surface: #2a2b2f;
+  --ks-surface-2: #37383d;
+  --ks-divider: #3c3e43;
+  --ks-scrollbar: rgba(255, 255, 255, 0.2);
+  --ks-scrollbar-hover: rgba(255, 255, 255, 0.35);
+  --ks-progress: rgba(122, 166, 170, 0.25);
+  --ks-badge-bg: #2f4649;
+  --ks-badge-text: #d0e3e5;
+  --ks-shadow: rgba(0, 0, 0, 0.4);
+  --ks-shadow-soft: rgba(0, 0, 0, 0.25);
+  --ks-ok: #749c6f;
+  --ks-error: #d97e4c;
+}
+
+/* ─── Blur Overlay ─────────────────────────────────────────────── */
+
+#voice-satellite-ui .vs-blur-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgb(245, 244, 242);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 9999;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+#voice-satellite-ui.vs-dark .vs-blur-overlay {
+  background: #202124;
+}
+
+#voice-satellite-ui .vs-blur-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ─── Start Button ─────────────────────────────────────────────── */
+
+#voice-satellite-ui .vs-start-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--ks-primary);
+  border: none;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(72, 130, 132, 0.3), 0 4px 16px var(--ks-shadow);
+  z-index: 10001;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#voice-satellite-ui .vs-start-btn.visible {
+  display: flex;
+  animation: ks-btn-pulse 2.5s ease-in-out infinite;
+}
+
+#voice-satellite-ui .vs-start-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(72, 130, 132, 0.5), 0 6px 20px var(--ks-shadow);
+  animation: none;
+}
+
+#voice-satellite-ui .vs-start-btn svg {
+  width: 28px;
+  height: 28px;
+  fill: white;
+}
+
+@keyframes ks-btn-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(72, 130, 132, 0.3), 0 4px 16px rgba(0, 0, 0, 0.15);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 4px 16px rgba(72, 130, 132, 0.5), 0 6px 24px rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* ─── Activity Bar ─────────────────────────────────────────────── */
+
+#voice-satellite-ui .vs-rainbow-bar {
+  position: fixed;
+  left: 20%;
+  right: 20%;
+  bottom: 24px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #18bcf2, #18bcf2 25%, #f2b705 25%, #f2b705 50%, #3fbf5f 50%, #3fbf5f 75%, #e8604c 75%, #e8604c);
+  background-size: 200% 100%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10000;
+  pointer-events: none;
+  transform: translateZ(0);
+  will-change: transform, filter, opacity;
+  contain: layout style;
+}
+
+#voice-satellite-ui .vs-rainbow-bar.visible {
+  opacity: 1;
+}
+
+#voice-satellite-ui .vs-rainbow-bar.connecting {
+  animation: ks-breathe 1.5s ease-in-out infinite;
+}
+
+#voice-satellite-ui .vs-rainbow-bar.listening {
+  animation: ks-flow 3s linear infinite;
+}
+
+#voice-satellite-ui .vs-rainbow-bar.processing {
+  animation: ks-flow 0.5s linear infinite;
+}
+
+#voice-satellite-ui .vs-rainbow-bar.speaking {
+  animation: ks-flow 2s linear infinite;
+}
+
+/* Reactive Bar */
+#voice-satellite-ui .vs-rainbow-bar.reactive {
+  transition: transform 0.05s linear;
+  transform-origin: bottom;
+  overflow: visible;
+  background: none;
+  transform: translateZ(0) scaleY(calc(1 + 3 * var(--vs-audio-level, 0)));
+  will-change: transform;
+}
+
+/* In reactive mode the bar's own background is gone (the fill child below
+   renders the gradient), so its background-position flow animation would
+   only burn main-thread time. */
+#voice-satellite-ui .vs-rainbow-bar.reactive.listening,
+#voice-satellite-ui .vs-rainbow-bar.reactive.processing,
+#voice-satellite-ui .vs-rainbow-bar.reactive.speaking {
+  animation: none;
+}
+
+/* Glow layer. The blurred gradient is painted once at a FIXED blur radius
+   and then only ever composited: intensity tracks the audio level through
+   opacity on this box, spread through the bar's own scaleY (this box is a
+   child of the bar, so the parent transform stretches the cached glow
+   texture), and the color flow through a transform animation on ::before.
+   None of those re-rasterize the blur. A level-dependent blur radius here
+   (the old approach) forced a full GPU re-blur of the layer every level
+   change, which low-end devices cannot keep up with. */
+#voice-satellite-ui .vs-rainbow-bar .vs-bar-glow {
+  display: none;
+  position: absolute;
+  /* The box is padded well past the bar so the fixed blur has room to
+     spread in every direction, and the mask fades the strip's ends before
+     they can reach the clip edge. */
+  top: -36px;
+  bottom: -36px;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+  z-index: -1;
+  pointer-events: none;
+  /* Squashing the cached blur texture reads as a smaller blur radius, so
+     the glow's SIZE still grows with the level like the old level-driven
+     radius did - but as a compositor transform, with no re-raster. The
+     range mirrors the old radius span (4+8*level vs the fixed 12). */
+  transform: scaleY(calc(0.4 + 0.6 * var(--vs-audio-level, 0)));
+  transition: opacity 0.05s linear, transform 0.05s linear;
+  will-change: opacity, transform;
+}
+
+#voice-satellite-ui .vs-rainbow-bar.reactive .vs-bar-glow {
+  display: block;
+  opacity: calc(var(--vs-audio-level, 0) * 2.5);
+}
+
+/* Slab two gradient periods wide (the period matches the bar's 200%
+   background-size, so glow colors sit exactly under the bar's): sliding it
+   one period leftward and snapping back is seamless, and the movement is
+   pure compositor transform. */
+#voice-satellite-ui .vs-rainbow-bar .vs-bar-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 400%;
+  background: linear-gradient(90deg, #18bcf2, #18bcf2 25%, #f2b705 25%, #f2b705 50%, #3fbf5f 50%, #3fbf5f 75%, #e8604c 75%, #e8604c);
+  background-size: 50% 8px;
+  background-position: 0 50%;
+  background-repeat: repeat-x;
+  filter: blur(18px);
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Blink spreads blur further than WebKit at the same radius, washing the
+   glow out into a larger, dimmer halo. Tighten the radius outside WebKit so
+   both engines render the same localized glow. */
+#voice-satellite-ui:not(.vs-webkit) .vs-rainbow-bar .vs-bar-glow::before {
+  filter: blur(12px);
+}
+
+/* Crisp gradient the bar shows while reactive. Same slab construction as
+   the glow: the two ::before elements run the SAME animation applied in the
+   same style update, which gives them the same start time - that is what
+   keeps the glow's colors locked under the bar's through every state
+   transition. (The bar's own background-position animation starts with the
+   state class, not with .reactive, so it cannot be used as the reference.) */
+#voice-satellite-ui .vs-rainbow-bar .vs-bar-fill {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  /* Below the glow: the blurred wash painting OVER the bar's pixels is
+     what makes the bar itself bloom at higher levels (matching the old
+     rendering, where the glow pseudo painted above the bar background).
+     With the fill on top the bar reads as permanently crisp-edged. */
+  z-index: -2;
+  pointer-events: none;
+}
+
+#voice-satellite-ui .vs-rainbow-bar.reactive .vs-bar-fill {
+  display: block;
+}
+
+#voice-satellite-ui .vs-rainbow-bar .vs-bar-fill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 400%;
+  background: linear-gradient(90deg, #18bcf2, #18bcf2 25%, #f2b705 25%, #f2b705 50%, #3fbf5f 50%, #3fbf5f 75%, #e8604c 75%, #e8604c);
+  background-size: 50% 100%;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Same duration on fill and glow: both slide one gradient period per
+   cycle from a shared start time. */
+#voice-satellite-ui .vs-rainbow-bar.reactive.listening .vs-bar-glow::before,
+#voice-satellite-ui .vs-rainbow-bar.reactive.listening .vs-bar-fill::before {
+  animation: ks-glow-slide 3s linear infinite;
+}
+
+#voice-satellite-ui .vs-rainbow-bar.reactive.processing .vs-bar-glow::before,
+#voice-satellite-ui .vs-rainbow-bar.reactive.processing .vs-bar-fill::before {
+  animation: ks-glow-slide 0.5s linear infinite;
+}
+
+#voice-satellite-ui .vs-rainbow-bar.reactive.speaking .vs-bar-glow::before,
+#voice-satellite-ui .vs-rainbow-bar.reactive.speaking .vs-bar-fill::before {
+  animation: ks-glow-slide 2s linear infinite;
+}
+
+@keyframes ks-glow-slide {
+  to { transform: translateZ(0) translateX(-50%); }
+}
+
+@keyframes ks-breathe {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes ks-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+
+/* ─── Chat ─────────────────────────────────────────────────────── */
+
+#voice-satellite-ui .vs-chat-container {
+  position: fixed;
+  left: 7.5%;
+  right: 7.5%;
+  bottom: 72px;
+  display: none;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: auto;
+  contain: content;
+  z-index: 10001;
+  pointer-events: none;
+  overflow: visible;
+  transition: left 0.4s ease, right 0.4s ease;
+}
+
+#voice-satellite-ui .vs-chat-container.visible {
+  display: flex;
+  pointer-events: auto;
+}
+
+#voice-satellite-ui.reactive-mode .vs-chat-container {
+  bottom: 120px;
+}
+
+#voice-satellite-ui .vs-chat-container.announcement-mode {
+  left: 50% !important;
+  right: auto !important;
+  width: 85%;
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%);
+}
+
+#voice-satellite-ui .vs-chat-msg {
+  max-width: 85%;
+  opacity: 0;
+  animation: ks-fade-in 0.3s ease forwards;
+  word-wrap: break-word;
+  white-space: pre-line;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 4px 0;
+  border-radius: 0;
+}
+
+#voice-satellite-ui .vs-chat-msg.user {
+  font-size: calc(32px * var(--vs-text-scale, 1));
+  color: var(--ks-text-dim);
+  font-weight: normal;
+  font-style: normal;
+  align-self: flex-start;
+  text-align: left;
+}
+
+#voice-satellite-ui .vs-chat-msg.assistant {
+  font-size: calc(36px * var(--vs-text-scale, 1));
+  color: var(--ks-text);
+  font-weight: 400;
+  font-style: normal;
+  align-self: flex-start;
+  text-align: left;
+  max-height: 70vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ks-scrollbar) transparent;
+}
+
+#voice-satellite-ui .vs-chat-msg.announcement {
+  font-size: calc(36px * var(--vs-text-scale, 1));
+  color: var(--ks-text);
+  font-weight: 400;
+  font-style: normal;
+  align-self: flex-start;
+  text-align: left;
+}
+
+/* Thinking Indicator - a miniature of the logo bars, sized to the tool
+   name text so the line does not jump when the indicator freezes and a
+   name appears beside it. The UI emits three bullet spans; each becomes a
+   bar (font-size 0 hides the glyph) and the fourth bar is ::after. */
+#voice-satellite-ui .vs-chat-msg.thinking {
+  display: flex;
+  align-items: center;
+  font-size: calc(24px * var(--vs-text-scale, 1));
+  color: var(--ks-text-secondary);
+  font-weight: 400;
+  padding: 2px 0;
+}
+
+#voice-satellite-ui .vs-thinking-dots {
+  --ks-mini-h: calc(24px * var(--vs-text-scale, 1));
+  --ks-mini-w: calc(var(--ks-mini-h) * 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--ks-mini-h) * 0.12);
+  height: var(--ks-mini-h);
+  vertical-align: middle;
+}
+
+#voice-satellite-ui .vs-thinking-dots span,
+#voice-satellite-ui .vs-thinking-dots::after {
+  content: '';
+  display: block;
+  flex: 0 0 auto;
+  width: var(--ks-mini-w);
+  border-radius: calc(var(--ks-mini-w) / 2);
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
+  overflow: hidden;
+  transform-origin: center;
+  animation: ks-mini-bounce 0.9s ease-in-out infinite;
+  animation-delay: var(--ks-delay, 0s);
+}
+
+/* Each bar swings between its own low and high scale: the short bars
+   shoot up to the full height of the mark and the tall bar dips to meet
+   them, so the mark pumps like an equalizer. The peaks stay inside the
+   24px box, so nothing around the line moves. */
+#voice-satellite-ui .vs-thinking-dots span:nth-child(1) {
+  height: calc(var(--ks-mini-h) * 0.53);
+  background: var(--ks-bar-1);
+  --ks-delay: 0s;
+  --ks-lo: 0.6;
+  --ks-hi: 1.85;
+}
+
+#voice-satellite-ui .vs-thinking-dots span:nth-child(2) {
+  height: calc(var(--ks-mini-h) * 0.39);
+  background: var(--ks-bar-2);
+  --ks-delay: -0.22s;
+  --ks-lo: 0.7;
+  --ks-hi: 2.5;
+}
+
+#voice-satellite-ui .vs-thinking-dots span:nth-child(3) {
+  height: var(--ks-mini-h);
+  background: var(--ks-bar-3);
+  --ks-delay: -0.45s;
+  --ks-lo: 0.45;
+  --ks-hi: 1;
+}
+
+#voice-satellite-ui .vs-thinking-dots::after {
+  height: calc(var(--ks-mini-h) * 0.41);
+  background: var(--ks-bar-4);
+  --ks-delay: -0.67s;
+  --ks-lo: 0.7;
+  --ks-hi: 2.4;
+}
+
+@keyframes ks-mini-bounce {
+  0%, 100% {
+    transform: scaleY(var(--ks-lo, 0.6));
+  }
+  50% {
+    transform: scaleY(var(--ks-hi, 1.8));
+  }
+}
+
+/* Idle bars - same size as while thinking, just still */
+#voice-satellite-ui .vs-chat-msg.thinking.idle .vs-thinking-dots span,
+#voice-satellite-ui .vs-chat-msg.thinking.idle .vs-thinking-dots::after,
+#voice-satellite-ui .vs-chat-msg.tool-call .vs-thinking-dots span,
+#voice-satellite-ui .vs-chat-msg.tool-call .vs-thinking-dots::after {
+  animation: none;
+  transform: none;
+}
+
+/* Tool name text beside the bars */
+#voice-satellite-ui .vs-thinking-text {
+  margin-left: 10px;
+  padding-right: 2px;
+  font-size: calc(24px * var(--vs-text-scale, 1));
+  color: var(--ks-text-secondary);
+  font-style: italic;
+}
+
+/* Tool call line (2nd+ tools, created fresh with static bars) */
+#voice-satellite-ui .vs-chat-msg.tool-call {
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 2px 0;
+}
+
+/* Frozen thinking line (1st tool, reuses the animated indicator) */
+#voice-satellite-ui .vs-chat-msg.thinking.idle {
+  display: flex;
+  align-items: center;
+}
+
+/* Animations */
+@keyframes ks-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Timers ───────────────────────────────────────────────────── */
+
+.vs-timer-container {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10001;
+  pointer-events: none;
+  font-family: "Google Sans", Roboto, Noto, sans-serif;
+}
+
+.vs-timer-pill {
+  position: relative;
+  overflow: hidden;
+  contain: content;
+  font-size: calc(28px * var(--vs-text-scale, 1));
+  color: #212327;
+  font-weight: bold;
+  font-style: normal;
+  background: #ffffff;
+  border: none;
+  padding: 14px 18px;
+  contain: content;
+  border-radius: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06);
+  animation: ks-timer-fade-in 0.3s ease forwards;
+  pointer-events: auto;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.vs-timer-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(72, 130, 132, 0.18);
+  opacity: 1;
+  transition: width 1s linear;
+  pointer-events: none;
+}
+
+.vs-timer-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vs-timer-icon {
+  flex-shrink: 0;
+}
+
+.vs-timer-time {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.vs-timer-pill.vs-timer-expired {
+  animation: ks-timer-fade-out 0.4s ease forwards;
+}
+
+/* Timer Finished Alert */
+.vs-timer-alert {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: calc(28px * var(--vs-text-scale, 1));
+  font-family: "Google Sans", Roboto, Noto, sans-serif;
+  color: #212327;
+  font-weight: bold;
+  font-style: normal;
+  background: #ffffff;
+  border: none;
+  padding: 18px 24px;
+  border-radius: 24px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 10002;
+  animation: ks-alert-pulse 1.5s ease-in-out infinite;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.vs-timer-alert .vs-timer-icon {
+  font-size: 1.5em;
+}
+
+.vs-timer-alert .vs-timer-time {
+  font-size: 1.2em;
+}
+
+@keyframes ks-timer-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ks-timer-fade-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes ks-alert-pulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.04);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 12px 32px rgba(72, 130, 132, 0.25);
+  }
+}
+
+/* Dark timer overrides: the timer container is a sibling of
+   #voice-satellite-ui on document.body, so --ks-* variables don't cascade. */
+#voice-satellite-ui.vs-dark ~ .vs-timer-container .vs-timer-pill {
+  color: #e8eaed;
+  background: #2a2b2f;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+#voice-satellite-ui.vs-dark ~ .vs-timer-container .vs-timer-progress {
+  background: rgba(122, 166, 170, 0.25);
+}
+
+#voice-satellite-ui.vs-dark ~ .vs-timer-container .vs-timer-alert,
+#voice-satellite-ui.vs-dark ~ .vs-timer-alert {
+  color: #e8eaed;
+  background: #2a2b2f;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* ─── Image Panel ──────────────────────────────────────────────── */
+
+#voice-satellite-ui .vs-image-panel {
+  position: fixed;
+  top: 50%;
+  right: 7.5%;
+  transform: translateY(-50%);
+  width: 30%;
+  max-height: 70vh;
+  overflow: hidden;
+  z-index: 10001;
+  pointer-events: none;
+  display: none;
+  background: var(--ks-surface);
+  border-radius: 24px;
+  padding: 12px;
+  box-shadow: 0 1px 3px var(--ks-shadow), 0 8px 24px var(--ks-shadow);
+}
+
+#voice-satellite-ui .vs-panel-scroll {
+  overflow-y: auto;
+  max-height: calc(70vh - 24px);
+  padding-right: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ks-scrollbar) transparent;
+}
+
+#voice-satellite-ui .vs-panel-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+#voice-satellite-ui .vs-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#voice-satellite-ui .vs-panel-scroll::-webkit-scrollbar-thumb {
+  background: var(--ks-scrollbar);
+  border-radius: 3px;
+}
+
+#voice-satellite-ui .vs-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ks-scrollbar-hover);
+}
+
+#voice-satellite-ui .vs-image-panel.visible {
+  display: block;
+  pointer-events: auto;
+}
+
+#voice-satellite-ui .vs-image-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+#voice-satellite-ui .vs-image-grid.single {
+  grid-template-columns: 1fr;
+}
+
+#voice-satellite-ui .vs-image-grid.single .vs-panel-img {
+  aspect-ratio: auto;
+  max-height: calc(70vh - 24px);
+  object-fit: contain;
+}
+
+#voice-satellite-ui .vs-panel-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 12px;
+  opacity: 0;
+  animation: ks-fade-in 0.3s ease forwards;
+}
+
+/* Lightbox - fullscreen image viewer */
+#voice-satellite-ui .vs-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10002;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+}
+
+#voice-satellite-ui .vs-lightbox.visible {
+  display: flex;
+}
+
+#voice-satellite-ui .vs-lightbox-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+#voice-satellite-ui .vs-lightbox-iframe {
+  width: 90vw;
+  max-width: 1200px;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  display: none;
+}
+
+/* Video grid */
+#voice-satellite-ui .vs-video-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+#voice-satellite-ui .vs-video-card {
+  cursor: pointer;
+}
+
+#voice-satellite-ui .vs-video-thumb-wrap {
+  position: relative;
+  width: 100%;
+}
+
+#voice-satellite-ui .vs-video-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+#voice-satellite-ui .vs-video-duration {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+#voice-satellite-ui .vs-video-info {
+  padding: 8px 4px 0;
+}
+
+#voice-satellite-ui .vs-video-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ks-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+#voice-satellite-ui .vs-video-channel {
+  font-size: 12px;
+  color: var(--ks-text-secondary);
+  margin-top: 2px;
+}
+
+/* Chat narrows when image panel is open */
+#voice-satellite-ui.has-images .vs-chat-container {
+  right: calc(37.5% + 40px);
+}
+#voice-satellite-ui.has-featured .vs-chat-container {
+  right: calc(32.5% + 40px);
+}
+
+#voice-satellite-ui.has-images .vs-chat-msg,
+#voice-satellite-ui.has-featured .vs-chat-msg {
+  max-width: 100%;
+}
+
+#voice-satellite-ui .vs-image-panel.featured {
+  width: 25%;
+}
+
+/* ─── Weather ──────────────────────────────────────────────────── */
+
+#voice-satellite-ui .vs-image-panel.weather {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  border: none;
+}
+
+#voice-satellite-ui .vs-weather-card {
+  padding: 8px 0;
+}
+
+#voice-satellite-ui .vs-weather-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 4px;
+}
+
+#voice-satellite-ui .vs-weather-icon {
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+}
+
+#voice-satellite-ui .vs-weather-temp {
+  font-size: calc(52px * var(--vs-text-scale, 1));
+  font-weight: 500;
+  color: var(--ks-text);
+  line-height: 1.1;
+}
+
+#voice-satellite-ui .vs-weather-condition {
+  font-size: calc(22px * var(--vs-text-scale, 1));
+  color: var(--ks-text-secondary);
+  margin-top: 4px;
+}
+
+#voice-satellite-ui .vs-weather-humidity {
+  font-size: calc(18px * var(--vs-text-scale, 1));
+  color: var(--ks-text-muted);
+  margin-top: 4px;
+}
+
+#voice-satellite-ui .vs-weather-divider {
+  height: 1px;
+  background: var(--ks-divider);
+  margin: 12px 0;
+}
+
+#voice-satellite-ui .vs-weather-forecast {
+  display: flex;
+  flex-direction: column;
+}
+
+#voice-satellite-ui .vs-weather-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 4px;
+}
+
+#voice-satellite-ui .vs-weather-row-time {
+  width: 30%;
+  font-size: calc(18px * var(--vs-text-scale, 1));
+  color: var(--ks-text-muted);
+  flex-shrink: 0;
+}
+
+#voice-satellite-ui .vs-weather-row-cond {
+  flex: 1;
+  font-size: calc(18px * var(--vs-text-scale, 1));
+  color: var(--ks-text-secondary);
+}
+
+#voice-satellite-ui .vs-weather-row-temp {
+  font-size: calc(22px * var(--vs-text-scale, 1));
+  font-weight: 500;
+  color: var(--ks-text);
+  text-align: right;
+  min-width: 56px;
+}
+
+/* ─── Financial ────────────────────────────────────────────────── */
+
+#voice-satellite-ui .vs-image-panel.financial {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  border: none;
+}
+
+#voice-satellite-ui .vs-financial-card {
+  padding: 8px 0;
+}
+
+#voice-satellite-ui .vs-financial-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+}
+
+#voice-satellite-ui .vs-financial-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+#voice-satellite-ui .vs-financial-name {
+  font-size: calc(20px * var(--vs-text-scale, 1));
+  color: var(--ks-text);
+  flex: 1;
+  min-width: 0;
+}
+
+#voice-satellite-ui .vs-financial-badge {
+  font-size: calc(12px * var(--vs-text-scale, 1));
+  color: var(--ks-badge-text);
+  background: var(--ks-badge-bg);
+  padding: 2px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+#voice-satellite-ui .vs-financial-price {
+  font-size: calc(48px * var(--vs-text-scale, 1));
+  font-weight: 500;
+  color: var(--ks-text);
+  padding: 4px 4px 0;
+  line-height: 1.1;
+}
+
+#voice-satellite-ui .vs-financial-change {
+  font-size: calc(22px * var(--vs-text-scale, 1));
+  padding: 4px 4px 8px;
+}
+
+#voice-satellite-ui .vs-financial-change.up {
+  color: var(--ks-ok);
+}
+
+#voice-satellite-ui .vs-financial-change.down {
+  color: var(--ks-error);
+}
+
+#voice-satellite-ui .vs-financial-details {
+  font-size: calc(16px * var(--vs-text-scale, 1));
+  color: var(--ks-text-muted);
+  padding: 8px 4px;
+}
+
+#voice-satellite-ui .vs-financial-conversion {
+  font-size: calc(42px * var(--vs-text-scale, 1));
+  font-weight: 500;
+  color: var(--ks-text);
+  padding: 16px 4px 8px;
+  line-height: 1.2;
+}
+
+#voice-satellite-ui .vs-financial-rate {
+  font-size: calc(20px * var(--vs-text-scale, 1));
+  color: var(--ks-text-muted);
+  padding: 4px 4px;
+}
+
+.vs-timer-name-label {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, calc(-50% + 80px));
+  z-index: 10002;
+  text-align: center;
+  max-width: 80vw;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  color: var(--ks-text);
+  font-size: calc(36px * var(--vs-text-scale, 1));
+  font-weight: 400;
+}
