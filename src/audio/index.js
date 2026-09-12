@@ -550,6 +550,12 @@ export class AudioManager {
     this.stopSending();
     this._captureBuffering = false;
     this._sendSessionCount += 1;
+    // TTS takes over the analyser and detaches it on completion. A reused
+    // Kiosk mic needs its external levels restored for each audio turn,
+    // whether the app uploads natively or streams PCM through the page.
+    if (this._mediaStream === KIOSK_MEDIA_STREAM && this._card.isReactiveBarEnabled) {
+      this._card.analyser.attachExternalMic();
+    }
     // Delegated pipeline: the app owns the buffer, the handler ID and the
     // socket; it drains buffered chunks first, exactly like the loop below.
     if (this._delegated) {

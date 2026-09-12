@@ -24,6 +24,7 @@ const CONFIG_KEY = 'vs-panel-config';
 /** The keys an external host may read and write through this hook. */
 const EXTERNAL_KEYS = [
   'auto_start',
+  'disable_muted_microphone_warning',
   'debug',
   'skin',
   'theme_mode',
