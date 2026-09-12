@@ -79,7 +79,7 @@ Per-satellite browser profile for overlay appearance, microphone processing, tim
 
 A browser overlay that kicks in after an idle timeout. Configured per-browser in the sidebar panel; automatically dismissed on voice interaction, tap, or kiosk app motion detection (Kiosk Satellite, Fully Kiosk). Hardware backlight dimming works in Kiosk Satellite, Fully Kiosk (Android), and Kiosker Pro (iOS). Does not activate while the engine is stopped.
 
-Inside [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite) the app can run its own screensaver instead: while the app's screensaver is enabled and its "Turn off the Voice Satellite screensaver" toggle is on (the default), the Voice Satellite screensaver stands down automatically and a notice appears under the toggle below explaining why.
+Inside [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) the app can run its own screensaver instead: while the app's screensaver is enabled and its "Turn off the Voice Satellite screensaver" toggle is on (the default), the Voice Satellite screensaver stands down automatically and a notice appears under the toggle below explaining why.
 
 | Setting | Description |
 |---------|-------------|
