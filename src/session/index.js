@@ -362,7 +362,7 @@ export class VoiceSatelliteSession {
       'microphone_device_id',
     ];
     const sessionKeys = [
-      'satellite_entity', 'debug',
+      'satellite_entity', 'disable_muted_microphone_warning', 'debug',
       ...micKeys,
       'seamless_wake_command', 'stt_followup_delay_ms', 'stt_followup_chime',
       'reactive_bar', 'reactive_bar_update_interval_ms',
@@ -394,6 +394,9 @@ export class VoiceSatelliteSession {
       }
     }
     this._logger.debug = !!this._config.debug;
+    if (this._config.disable_muted_microphone_warning === true) {
+      this._dismissMutedToast();
+    }
 
     const seamlessWakeCommand = this._config.seamless_wake_command === true;
     if (
@@ -621,6 +624,7 @@ export class VoiceSatelliteSession {
    * covers part of them every time. A reload brings it back.
    */
   showMutedToast() {
+    if (this._config.disable_muted_microphone_warning === true) return;
     this._toast.show({
       id: 'mic-muted',
       severity: 'warn',
