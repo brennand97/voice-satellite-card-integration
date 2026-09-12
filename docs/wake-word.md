@@ -59,7 +59,7 @@ If your device supports WebGPU and your wake word is available as a vsWakeWord m
 
 ## Running Inside Kiosk Satellite
 
-On Android tablets, [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite) - the free official companion kiosk app - takes wake word detection out of the browser entirely. Voice Satellite detects it is running inside Kiosk Satellite and hands detection over to the app's native engine on its own. The handoff is completely transparent:
+On Android tablets, [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) - the free official companion kiosk app - takes wake word detection out of the browser entirely. Voice Satellite detects it is running inside Kiosk Satellite and hands detection over to the app's native engine on its own. The handoff is completely transparent:
 
 - **Nothing to reconfigure.** You keep your engine and model choice in the "Wake word detection" select; the app inherits them from Voice Satellite and downloads the same models from your Home Assistant instance.
 - **Screen off, app in background - still listening.** Native detection does not depend on the page being visible. With background listening enabled in the app, the wake word works even while another app is in the foreground, and the kiosk returns to the dashboard on a trigger.

@@ -73,13 +73,14 @@ Per-satellite browser profile for overlay appearance, microphone processing, tim
 | **Voice isolation** *(Wake Word / STT)* | AI-based voice isolation (Chrome only). Configurable independently for each capture phase |
 | **Follow-up listen delay** *(STT)* | Pause (0-1000 ms) inserted between the assistant finishing speaking and the mic listening again on follow-up turns (continue conversation, `start_conversation`, `ask_question`). Use this if the tail of the response (last word or two) is being captured into your next reply. Common on tablets without hardware echo cancellation, especially with synthesized voices like Piper. Try 300-500 ms; leave at 0 if follow-ups already work cleanly. Default 0 |
 | **Follow-up ready chime** *(STT)* | Play the wake chime when the mic starts listening for a follow-up turn, so you have an audible "speak now" cue. Pairs naturally with a non-zero **Follow-up listen delay**. Default off. `ask_question` always plays the chime regardless of this setting since it is functional UX for that flow |
+| **Disable muted microphone warning** | Hide the muted microphone warning at startup and whenever the satellite microphone is muted. Default off |
 | **Debug logging** | Show debug info in the browser console |
 
 ### Screensaver
 
 A browser overlay that kicks in after an idle timeout. Configured per-browser in the sidebar panel; automatically dismissed on voice interaction, tap, or kiosk app motion detection (Kiosk Satellite, Fully Kiosk). Hardware backlight dimming works in Kiosk Satellite, Fully Kiosk (Android), and Kiosker Pro (iOS). Does not activate while the engine is stopped.
 
-Inside [Kiosk Satellite](https://github.com/brennand97/kiosk-satellite) the app can run its own screensaver instead: while the app's screensaver is enabled and its "Turn off the Voice Satellite screensaver" toggle is on (the default), the Voice Satellite screensaver stands down automatically and a notice appears under the toggle below explaining why.
+Inside [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) the app can run its own screensaver instead: while the app's screensaver is enabled and its "Turn off the Voice Satellite screensaver" toggle is on (the default), the Voice Satellite screensaver stands down automatically and a notice appears under the toggle below explaining why.
 
 | Setting | Description |
 |---------|-------------|

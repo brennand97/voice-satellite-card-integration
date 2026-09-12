@@ -104,6 +104,7 @@ export function buildAutoStartSchema(microphoneOptions = []) {
 }
 
 export const debugSchema = [
+  { name: 'disable_muted_microphone_warning', default: false, selector: { boolean: {} } },
   { name: 'debug', selector: { boolean: {} } },
 ];
 
@@ -180,6 +181,7 @@ export const behaviorLabels = {
   satellite_entity: t(null, 'editor.behavior.satellite_entity', 'Satellite entity'),
   auto_start: t(null, 'editor.behavior.auto_start', 'Auto start'),
   microphone_device_id: t(null, 'editor.behavior.microphone_device_id', 'Microphone'),
+  disable_muted_microphone_warning: t(null, 'editor.behavior.disable_muted_microphone_warning', 'Disable muted microphone warning'),
   debug: t(null, 'editor.behavior.debug', 'Debug logging'),
   chat_show_user_command: t(null, 'editor.behavior.chat_show_user_command', 'Show user command'),
   chat_show_assistant_response: t(null, 'editor.behavior.chat_show_assistant_response', 'Show assistant response'),
@@ -209,6 +211,7 @@ export const behaviorLabels = {
 };
 
 export const behaviorHelpers = {
+  disable_muted_microphone_warning: t(null, 'editor.behavior.helper_disable_muted_microphone_warning', 'Hide the muted microphone warning at startup and whenever the satellite microphone is muted.'),
   satellite_entity: t(null, 'editor.behavior.helper_satellite_entity', 'Add a satellite device first via Settings → Devices & Services → Voice Satellite.'),
   auto_start: t(null, 'editor.behavior.helper_auto_start', 'Automatically start the voice engine when the page loads. When off, use the Start button to activate manually.'),
   microphone_device_id: t(null, 'editor.behavior.helper_microphone_device_id', 'Use the browser default microphone, or select a specific input if the default device is silent or wrong.'),

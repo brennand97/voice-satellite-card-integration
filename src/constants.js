@@ -72,6 +72,7 @@ export const DEFAULT_CONFIG = {
   satellite_entity: '',
   auto_start: true,
   microphone_device_id: 'default',
+  disable_muted_microphone_warning: false,
   debug: false,
 
   // Microphone Processing — Wake Word listening.

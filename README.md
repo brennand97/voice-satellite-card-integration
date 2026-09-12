@@ -39,7 +39,7 @@ Voice Satellite runs as a **global engine** that loads on every page of Home Ass
 - **Dual wake words / dual pipelines** - load two wake words simultaneously (e.g. "Okay Nabu" and "Hey Jarvis") and route each to its own Assist pipeline, so a household can mix languages, mix a local-only pipeline with a cloud/LLM one, or give each character its own conversation agent and voice
 - **Timers, announcements, conversations** - voice-activated timers with countdown pills, `assist_satellite.announce` / `start_conversation` / `ask_question` from automations
 - **Media player entity** - exposed as a TV-class device. Plays audio, local video files, and HLS / MJPEG camera streams full-screen on the satellite, with volume control, `tts.speak` targeting, `media_player.play_media` from automations, and Media Browser support. TTS can route to browser or a remote speaker
-- **Skins** - 9 built-in skins (Default, Alexa, Google Home, Home Assistant, Ink Blobs, Lens Flares, Retro Terminal, Siri, Waveform) with CSS overrides. Reactive audio-level animation on the activity bar
+- **Skins** - 10 built-in skins (Default, Alexa, Google Home, Home Assistant, Ink Blobs, Kiosk Satellite, Lens Flares, Retro Terminal, Siri, Waveform) with CSS overrides. Reactive audio-level animation on the activity bar
 - **Screensaver** - black overlay, image/video/folder from the HA media library, or live camera feed. Cross-fades between folder items; integrates with kiosk app backlight dimming and motion-dismiss (Kiosk Satellite, Fully Kiosk)
 - **Mini card** - optional `voice-satellite-mini-card` for in-dashboard text display without the fullscreen overlay
 - **LLM tools** *(experimental)* - image/video/web/Wikipedia search, weather, stocks/crypto with visual panels. Requires [Voice Satellite - LLM Tools](https://github.com/jxlarrea/voice-satellite-card-llm-tools)
@@ -163,7 +163,7 @@ See the [Wake Word reference](docs/wake-word.md) for the full engine comparison,
 
 ## Skins & Customization
 
-Nine built-in skins (Default, Alexa, Google Home, Home Assistant, Ink Blobs, Lens Flares, Retro Terminal, Siri, Waveform) theme the overlay, timer pills, and activity bar. Every skin can be further tweaked via the **Custom CSS** field in the sidebar panel, and the Waveform, Ink Blobs, and Lens Flares skins expose dedicated CSS variables for color control. Built-in chime sounds (`wake`, `done`, `error`, `alert`, `announce`) can be replaced with your own MP3s that survive HACS updates.
+Ten built-in skins (Default, Alexa, Google Home, Home Assistant, Ink Blobs, Kiosk Satellite, Lens Flares, Retro Terminal, Siri, Waveform) theme the overlay, timer pills, and activity bar. Every skin can be further tweaked via the **Custom CSS** field in the sidebar panel, and the Waveform, Ink Blobs, and Lens Flares skins expose dedicated CSS variables for color control. Built-in chime sounds (`wake`, `done`, `error`, `alert`, `announce`) can be replaced with your own MP3s that survive HACS updates.
 
 <img src="https://raw.githubusercontent.com/brennand97/voice-satellite-card-integration/refs/heads/main/assets/screenshots/lensflare.png" alt="Lens Flare Skins" width="100%"/>
 

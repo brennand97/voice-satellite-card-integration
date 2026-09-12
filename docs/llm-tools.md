@@ -1,9 +1,9 @@
 # Experimental: LLM Tools
 
-Voice Satellite supports displaying rich visual results from LLM tool calls inline during voice interactions. These features require the **[Voice Satellite - LLM Tools](https://github.com/brennand97/voice-satellite-card-llm-tools)** integration, which provides the tools to your conversation agent.
+Voice Satellite supports displaying rich visual results from LLM tool calls inline during voice interactions. These features require the **[Voice Satellite - LLM Tools](https://github.com/jxlarrea/voice-satellite-card-llm-tools)** integration, which provides the tools to your conversation agent.
 
 > **Requirements:**
-> - Install the **[Voice Satellite - LLM Tools](https://github.com/brennand97/voice-satellite-card-llm-tools)** integration, which provides the search tools to your conversation agent.
+> - Install the **[Voice Satellite - LLM Tools](https://github.com/jxlarrea/voice-satellite-card-llm-tools)** integration, which provides the search tools to your conversation agent.
 > - Your Assist pipeline must use a **conversational AI agent** (e.g., OpenAI, Google Generative AI, Anthropic, Ollama, etc.). The built-in Home Assistant conversation agent does not support tool calling and cannot use these features.
 
 ## Contents
