@@ -29,6 +29,7 @@ jobs:
           custom_components/voice_satellite/config_flow.py
           custom_components/voice_satellite/select.py
           custom_components/voice_satellite/assist_satellite.py
+          custom_components/voice_satellite/media_interference.py
           custom_components/voice_satellite/__init__.py
       - name: Validate translations JSON
         run: |
