@@ -56,6 +56,13 @@ from .const import (
     CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
     CONF_INITIAL_PROMPT,
     CONF_INITIAL_VOICE,
+    CONF_MEDIA_GUARD_ACTION,
+    CONF_MEDIA_GUARD_ENTITIES,
+    CONF_MEDIA_GUARD_RESTORE_DELAY_MS,
+    CONF_MEDIA_GUARD_VOLUME,
+    MEDIA_GUARD_DUCK,
+    MEDIA_GUARD_OFF,
+    MEDIA_GUARD_PAUSE,
     CONF_REQUESTED_TOOLS,
     CONF_TOOL_PROFILE,
     CONVERSATION_TRANSPORT_EXTERNAL,
@@ -64,6 +71,7 @@ from .const import (
     INTEGRATION_VERSION,
 )
 from .external_transport.runtime import ExternalConversationRuntime
+from .media_interference import GuardLease, GuardPolicy, MediaInterferenceCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -199,6 +207,9 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
         self._pipeline_run_started: bool = False  # Gate: block events until run-start
         self._conversation_id: str | None = None
         self._conversation_last_activity: float = 0.0  # monotonic timestamp
+        # A run-generation scoped backend media guard. It must not share the
+        # browser player's interrupt/resume ownership.
+        self._media_guard_leases: dict[int, GuardLease] = {}
 
         # External Transport owns its own persistent provider WebSocket. Keep
         # it separate from the upstream Assist pipeline fields above.
@@ -506,6 +517,9 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
                     await self._pipeline_task
                 except (asyncio.CancelledError, Exception):
                     pass
+
+        for generation in tuple(self._media_guard_leases):
+            await self._async_release_media_guard(generation)
 
         # The external provider conversation is terminal on entity removal.
         if self._external_runtime is not None:
@@ -1137,6 +1151,48 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
             mapped,
         )
 
+    def _media_guard_policy(self) -> tuple[tuple[str, ...], GuardPolicy] | None:
+        """Return validated, physical-Satellite-only media guard configuration."""
+        options = self._entry.options
+        entities = options.get(CONF_MEDIA_GUARD_ENTITIES, [])
+        if not isinstance(entities, list):
+            return None
+        targets = tuple(dict.fromkeys(entity for entity in entities if isinstance(entity, str) and entity.startswith("media_player.")))
+        action = options.get(CONF_MEDIA_GUARD_ACTION, MEDIA_GUARD_DUCK)
+        if action not in (MEDIA_GUARD_OFF, MEDIA_GUARD_DUCK, MEDIA_GUARD_PAUSE) or not targets:
+            return None
+        try:
+            volume = float(options.get(CONF_MEDIA_GUARD_VOLUME, 10)) / 100
+            delay = float(options.get(CONF_MEDIA_GUARD_RESTORE_DELAY_MS, 350)) / 1000
+        except (TypeError, ValueError):
+            return None
+        if not 0.01 <= volume <= 0.5 or not 0 <= delay <= 2:
+            return None
+        local_player = self.hass.data.get(DOMAIN, {}).get(f"{self._entry.entry_id}_media_player")
+        local_id = getattr(local_player, "entity_id", None)
+        targets = tuple(entity for entity in targets if entity != local_id)
+        return (targets, GuardPolicy(action=action, volume=volume, restore_delay=delay)) if targets else None
+
+    async def _async_prepare_media_guard(self, generation: int) -> None:
+        config = self._media_guard_policy()
+        coordinator = self.hass.data.get(DOMAIN, {}).get("media_interference_coordinator")
+        if config is None or not isinstance(coordinator, MediaInterferenceCoordinator):
+            return
+        targets, policy = config
+        self._media_guard_leases[generation] = await coordinator.acquire(self._entry.entry_id, targets, policy)
+
+    async def _async_activate_media_guard(self, generation: int) -> None:
+        lease = self._media_guard_leases.get(generation)
+        coordinator = self.hass.data.get(DOMAIN, {}).get("media_interference_coordinator")
+        if lease is not None and isinstance(coordinator, MediaInterferenceCoordinator):
+            await coordinator.activate(lease)
+
+    async def _async_release_media_guard(self, generation: int) -> None:
+        lease = self._media_guard_leases.pop(generation, None)
+        coordinator = self.hass.data.get(DOMAIN, {}).get("media_interference_coordinator")
+        if lease is not None and isinstance(coordinator, MediaInterferenceCoordinator):
+            await coordinator.release(lease)
+
     async def async_run_pipeline_text(
         self,
         connection,
@@ -1176,6 +1232,8 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
         self._pipeline_msg_id = msg_id
         self._pipeline_audio_queue = None
         self._pipeline_run_started = False
+        await self._async_prepare_media_guard(my_gen)
+        await self._async_activate_media_guard(my_gen)
 
         # Conversation continuity — same session-duration check as the audio
         # path so a show fires inside an active conversation thread when the
@@ -1277,6 +1335,7 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
                     str(err) or "Pipeline setup failed",
                 )
         finally:
+            await self._async_release_media_guard(my_gen)
             if self._pipeline_gen == my_gen:
                 self._pipeline_connection = None
                 self._pipeline_msg_id = None
@@ -1339,6 +1398,9 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
         self._pipeline_audio_queue = audio_queue
         self._pipeline_run_started = False
         self._active_wake_word_slot = 2 if wake_word_slot == 2 else 1
+        await self._async_prepare_media_guard(my_gen)
+        if start_stage != "wake_word":
+            await self._async_activate_media_guard(my_gen)
 
         # Set conversation_id for continue conversation support.
         # When a session duration is configured and the elapsed time exceeds
@@ -1410,6 +1472,7 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
                 wake_word_phrase=wake_word_phrase,
             )
         finally:
+            await self._async_release_media_guard(my_gen)
             # Only clear if we're still the active generation - a newer
             # run may have already claimed these fields.
             if self._pipeline_gen == my_gen:
@@ -1475,9 +1538,12 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
         generation = self._pipeline_gen
         self._pipeline_connection, self._pipeline_msg_id = connection, msg_id
         self._pipeline_audio_queue, self._pipeline_run_started = audio_queue, True
+        await self._async_prepare_media_guard(generation)
+        await self._async_activate_media_guard(generation)
         try:
             await runtime.attach_audio(audio_queue, connection, msg_id, conversation_id=conversation_id, wake_word=wake_word_phrase)
         finally:
+            await self._async_release_media_guard(generation)
             if self._pipeline_gen == generation:
                 self._pipeline_connection = self._pipeline_msg_id = self._pipeline_audio_queue = None
                 self._pipeline_run_started = False
@@ -1492,9 +1558,12 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
         generation = self._pipeline_gen
         self._pipeline_connection, self._pipeline_msg_id = connection, msg_id
         self._pipeline_audio_queue, self._pipeline_run_started = None, True
+        await self._async_prepare_media_guard(generation)
+        await self._async_activate_media_guard(generation)
         try:
             await runtime.attach_text(text, connection, msg_id, conversation_id=conversation_id)
         finally:
+            await self._async_release_media_guard(generation)
             if self._pipeline_gen == generation:
                 self._pipeline_connection = self._pipeline_msg_id = self._pipeline_audio_queue = None
                 self._pipeline_run_started = False
@@ -1523,6 +1592,12 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
             self._satellite_name,
             event_type_str,
         )
+
+        # A server-side wake-word pipeline is continuously open. Do not touch
+        # nearby media until HA has confirmed an actual wake-word detection.
+        if event_type_str in {"wake-word-end", "wake_word-end"}:
+            generation = self._pipeline_gen
+            self.hass.async_create_task(self._async_activate_media_guard(generation))
 
         if self._pipeline_connection and self._pipeline_msg_id:
             event_data = getattr(event, "data", None) or {}

@@ -120,6 +120,22 @@
         "data_description": {
           "conversation_profile_id": "Select the profile configured for this service, such as Pipecat External Conversation."
         }
+      },
+      "media_guard": {
+        "title": "Nearby media interference guard",
+        "description": "Temporarily control explicitly selected nearby players while this Satellite is handling an interaction. This controls media; it is not acoustic echo cancellation.",
+        "data": {
+          "media_guard_entities": "Nearby media players",
+          "media_guard_action": "Interference action",
+          "media_guard_volume": "Temporary volume (%)",
+          "media_guard_restore_delay_ms": "Restore delay (ms)"
+        },
+        "data_description": {
+          "media_guard_entities": "Select the Music Assistant group or queue leader near this microphone. Do not select this Satellite\u2019s own media player.",
+          "media_guard_action": "Duck lowers playback while listening; pause stops and guardedly resumes only playback this guard paused.",
+          "media_guard_volume": "The ceiling used by duck, from 1 to 50 percent. Players already quieter are not raised.",
+          "media_guard_restore_delay_ms": "Wait after the final interaction before restoring playback, from 0 to 2000 ms."
+        }
       }
     },
     "abort": {
@@ -127,7 +143,8 @@
     },
     "error": {
       "invalid_profile_assignment": "Select a valid service and a profile belonging to that service.",
-      "invalid_external_transport_url": "Enter a WebSocket URL ending in /transport/v1 (for example, wss://voice-agent.example/transport/v1)."
+      "invalid_external_transport_url": "Enter a WebSocket URL ending in /transport/v1 (for example, wss://voice-agent.example/transport/v1).",
+      "invalid_media_guard": "Select only media_player entities and valid guard values."
     }
   },
   "entity": {

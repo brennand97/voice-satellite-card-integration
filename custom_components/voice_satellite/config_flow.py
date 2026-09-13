@@ -16,6 +16,7 @@ from homeassistant.config_entries import (
     SubentryFlowResult,
 )
 from homeassistant.core import callback
+from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig, NumberSelector, NumberSelectorConfig, NumberSelectorMode, SelectSelector, SelectSelectorConfig, SelectSelectorMode
 
 from .profile_flow import ExternalConversationProfileFlow
 from .const import (
@@ -28,6 +29,13 @@ from .const import (
     CONF_ENTRY_TYPE,
     CONF_INITIAL_PROMPT,
     CONF_INITIAL_VOICE,
+    CONF_MEDIA_GUARD_ACTION,
+    CONF_MEDIA_GUARD_ENTITIES,
+    CONF_MEDIA_GUARD_RESTORE_DELAY_MS,
+    CONF_MEDIA_GUARD_VOLUME,
+    MEDIA_GUARD_DUCK,
+    MEDIA_GUARD_OFF,
+    MEDIA_GUARD_PAUSE,
     CONF_PROFILE_NAME,
     CONF_REQUESTED_TOOLS,
     CONF_TOOL_PROFILE,
@@ -277,16 +285,47 @@ class VoiceSatelliteOptionsFlow(OptionsFlow):
                     data_schema=self._profile_schema(service),
                     errors={"base": "invalid_profile_assignment"},
                 )
-            return self.async_create_entry(
-                title="",
-                data={
-                    CONF_CONVERSATION_SERVICE_ENTRY_ID: self._service_entry_id,
-                    CONF_CONVERSATION_PROFILE_ID: profile_id,
-                },
-            )
+            self._profile_id = profile_id
+            return await self.async_step_media_guard()
         return self.async_show_form(
             step_id="profile", data_schema=self._profile_schema(service)
         )
+
+    async def async_step_media_guard(
+        self, user_input: dict[str, object] | None = None
+    ) -> ConfigFlowResult:
+        """Configure nearby players after service/profile assignment."""
+        if user_input is not None:
+            entities = user_input.get(CONF_MEDIA_GUARD_ENTITIES, [])
+            action = user_input.get(CONF_MEDIA_GUARD_ACTION)
+            volume = user_input.get(CONF_MEDIA_GUARD_VOLUME)
+            delay = user_input.get(CONF_MEDIA_GUARD_RESTORE_DELAY_MS)
+            if (
+                not isinstance(entities, list)
+                or not all(isinstance(entity, str) and entity.startswith("media_player.") for entity in entities)
+                or action not in (MEDIA_GUARD_OFF, MEDIA_GUARD_DUCK, MEDIA_GUARD_PAUSE)
+                or isinstance(volume, bool) or not isinstance(volume, int) or not 1 <= volume <= 50
+                or isinstance(delay, bool) or not isinstance(delay, int) or not 0 <= delay <= 2000
+            ):
+                return self.async_show_form(step_id="media_guard", data_schema=self._media_guard_schema(), errors={"base": "invalid_media_guard"})
+            return self.async_create_entry(title="", data={
+                CONF_CONVERSATION_SERVICE_ENTRY_ID: self._service_entry_id,
+                CONF_CONVERSATION_PROFILE_ID: self._profile_id,
+                CONF_MEDIA_GUARD_ENTITIES: list(dict.fromkeys(entities)),
+                CONF_MEDIA_GUARD_ACTION: action,
+                CONF_MEDIA_GUARD_VOLUME: volume,
+                CONF_MEDIA_GUARD_RESTORE_DELAY_MS: delay,
+            })
+        return self.async_show_form(step_id="media_guard", data_schema=self._media_guard_schema())
+
+    def _media_guard_schema(self) -> vol.Schema:
+        options = self.config_entry.options
+        return vol.Schema({
+            vol.Optional(CONF_MEDIA_GUARD_ENTITIES, default=options.get(CONF_MEDIA_GUARD_ENTITIES, [])): EntitySelector(EntitySelectorConfig(domain="media_player", multiple=True)),
+            vol.Required(CONF_MEDIA_GUARD_ACTION, default=options.get(CONF_MEDIA_GUARD_ACTION, MEDIA_GUARD_DUCK)): SelectSelector(SelectSelectorConfig(options=[MEDIA_GUARD_OFF, MEDIA_GUARD_DUCK, MEDIA_GUARD_PAUSE], mode=SelectSelectorMode.DROPDOWN)),
+            vol.Required(CONF_MEDIA_GUARD_VOLUME, default=options.get(CONF_MEDIA_GUARD_VOLUME, 10)): NumberSelector(NumberSelectorConfig(min=1, max=50, step=1, mode=NumberSelectorMode.BOX)),
+            vol.Required(CONF_MEDIA_GUARD_RESTORE_DELAY_MS, default=options.get(CONF_MEDIA_GUARD_RESTORE_DELAY_MS, 350)): NumberSelector(NumberSelectorConfig(min=0, max=2000, step=1, mode=NumberSelectorMode.BOX)),
+        })
 
     def _service_schema(self) -> vol.Schema:
         options = self.config_entry.options

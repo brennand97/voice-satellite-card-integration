@@ -13,6 +13,16 @@ CONF_CONVERSATION_PROFILE_ID: Final[str] = "conversation_profile_id"
 CONF_INITIAL_PROMPT: Final[str] = "initial_prompt"
 CONF_INITIAL_VOICE: Final[str] = "initial_voice"
 
+# Per-physical-Satellite nearby media guard. These are ConfigEntry options,
+# never model/profile policy or entity state attributes.
+CONF_MEDIA_GUARD_ENTITIES: Final[str] = "media_guard_entities"
+CONF_MEDIA_GUARD_ACTION: Final[str] = "media_guard_action"
+CONF_MEDIA_GUARD_VOLUME: Final[str] = "media_guard_volume"
+CONF_MEDIA_GUARD_RESTORE_DELAY_MS: Final[str] = "media_guard_restore_delay_ms"
+MEDIA_GUARD_OFF: Final[str] = "off"
+MEDIA_GUARD_DUCK: Final[str] = "duck"
+MEDIA_GUARD_PAUSE: Final[str] = "pause"
+
 # External Transport configuration. Values live in ConfigEntry.options and
 # must never be surfaced as entity state attributes or frontend settings.
 CONF_EXTERNAL_TRANSPORT_URL: Final[str] = "external_transport_url"

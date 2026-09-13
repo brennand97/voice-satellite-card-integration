@@ -18,8 +18,8 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
-from homeassistant.core import Context, HomeAssistant, ServiceCall
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
+from homeassistant.core import Context, HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
@@ -29,6 +29,7 @@ from .const import (
     ENTRY_TYPE_SERVICE,
 )
 from .diagnostics import register as register_diagnostics
+from .media_interference import MediaInterferenceCoordinator
 from .media_proxy import async_setup_media_proxy
 from .frontend import (
     async_register_resource,
@@ -413,6 +414,14 @@ async def _async_handle_show_service(call: ServiceCall) -> None:
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up integration-wide resources: frontend JS + WebSocket commands."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    coordinator = domain_data.setdefault("media_interference_coordinator", MediaInterferenceCoordinator(hass))
+
+    @callback
+    def _close_media_guard(_event) -> None:
+        hass.async_create_task(coordinator.close())
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _close_media_guard)
     # Pull any user-added wake word models from the persistent drop folder,
     # and sync custom sounds with persistent storage.
     await hass.async_add_executor_job(_load_user_custom_models, hass.config.config_dir)
@@ -604,8 +613,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id, None)
         hass.data[DOMAIN].pop(f"{entry.entry_id}_media_player", None)
         hass.data[DOMAIN].pop(f"{entry.entry_id}_screensaver_sensor", None)
-        # Remove Lovelace resource when last entry is unloaded
-        if not hass.data[DOMAIN]:
+        # The integration-wide media coordinator remains in hass.data, so
+        # entry references—not dictionary emptiness—determine the last unload.
+        if not any(
+            configured.entry_id in hass.data[DOMAIN]
+            for configured in hass.config_entries.async_entries(DOMAIN)
+        ):
             await async_unregister_resource(hass)
     return result
 
