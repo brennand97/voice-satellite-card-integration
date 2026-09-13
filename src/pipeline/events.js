@@ -473,14 +473,11 @@ export function handleRunEnd(mgr, eventData = {}) {
   mgr.binaryHandlerId = null;
 
   if (terminalExternalSession) {
-    // A server-owned EndSession closes the provider before the card receives
-    // this event. Do not defer cleanup for residual audio: continued native
-    // PCM would fill HA's bounded external queue after its consumer exits.
-    mgr.card.audio.stopSending();
-    try { mgr.card.tts.stop(); } catch (_) { /* best-effort terminal cleanup */ }
+    // ExternalSessionController already stopped PCM and owns terminal UI
+    // cleanup. It intentionally keeps the final transcript for three seconds
+    // before forcing it away; finishRunEnd can defer forever for a lingering
+    // media panel and must not compete with that owner.
     mgr.pendingRunEnd = false;
-    mgr.card.chat.clear();
-    mgr.finishRunEnd();
     return;
   }
 
