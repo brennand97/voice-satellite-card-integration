@@ -1,6 +1,6 @@
 # Media Interference Guard — low-level implementation plan
 
-Status: design only; implementation has not started.
+Status: core implementation completed in `ca64fb4`; local HA/JS regression tests pass. The read-only live probe and on-device acceptance scenarios remain pending before release.
 
 Audience: an implementation agent with no prior conversation context.
 
