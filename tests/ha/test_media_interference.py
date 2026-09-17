@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 from homeassistant.core import Context
 
-from custom_components.voice_satellite import _find_entity
+from custom_components.voice_satellite import ws_run_pipeline
 from custom_components.voice_satellite.const import DOMAIN
 from custom_components.voice_satellite.media_interference import (
     GuardPolicy,
@@ -17,12 +15,59 @@ from custom_components.voice_satellite.media_interference import (
 pytestmark = pytest.mark.usefixtures("enable_custom_integrations")
 
 
-def test_entity_lookup_ignores_integration_wide_coordinator() -> None:
-    entity = SimpleNamespace(entity_id="assist_satellite.kitchen")
-    hass = SimpleNamespace(
-        data={DOMAIN: {"media_interference_coordinator": object(), "entry": entity}}
+async def test_pipeline_websocket_routes_past_integration_wide_coordinator(hass) -> None:
+    """Reproduce fork.30: coordinator was visited before the Satellite entity."""
+    completed = False
+
+    class Satellite:
+        entity_id = "assist_satellite.kitchen"
+        pipeline_audio_queue = None
+        pipeline_task = None
+        uses_external_transport = False
+        satellite_name = "Kitchen"
+
+        async def async_run_pipeline_text(self, *_args, **_kwargs) -> None:
+            nonlocal completed
+            completed = True
+
+    class Connection:
+        def __init__(self) -> None:
+            self.results = []
+            self.events = []
+            self.subscriptions = {}
+
+        def send_result(self, msg_id) -> None:
+            self.results.append(msg_id)
+
+        def send_event(self, msg_id, event) -> None:
+            self.events.append((msg_id, event))
+
+    entity = Satellite()
+    connection = Connection()
+    # In production async_setup inserts this coordinator before platforms add
+    # their entities. The old lookup accessed coordinator.entity_id directly
+    # and raised AttributeError before creating the pipeline task.
+    hass.data[DOMAIN] = {
+        "media_interference_coordinator": object(),
+        "entry": entity,
+    }
+    ws_run_pipeline(
+        hass,
+        connection,
+        {
+            "id": 7,
+            "entity_id": entity.entity_id,
+            "start_stage": "intent",
+            "end_stage": "tts",
+            "sample_rate": 16000,
+            "intent_input": "hello",
+        },
     )
-    assert _find_entity(hass, entity.entity_id) is entity
+    await hass.async_block_till_done()
+
+    assert completed is True
+    assert connection.results == [7]
+    assert connection.events == [(7, {"type": "init", "handler_id": None})]
 
 
 async def _register_player_services(hass, entity_id: str, calls: list[str]) -> None:
