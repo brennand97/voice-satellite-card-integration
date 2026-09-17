@@ -49,6 +49,88 @@ async def test_duck_restores_intended_volume_after_final_lease(hass) -> None:
     assert calls == ["volume_set", "volume_set"]
 
 
+async def test_overlapping_duck_leases_restore_original_volume_only_after_final_release(hass) -> None:
+    entity_id = "media_player.kitchen"
+    calls: list[str] = []
+    hass.states.async_set(entity_id, "playing", {"volume_level": 0.7, "media_title": "Test"})
+    await _register_player_services(hass, entity_id, calls)
+    coordinator = MediaInterferenceCoordinator(hass)
+
+    first = await coordinator.acquire("kitchen", (entity_id,), GuardPolicy("duck", 0.1, 0))
+    second = await coordinator.acquire("hall", (entity_id,), GuardPolicy("duck", 0.2, 0))
+    await coordinator.activate(first)
+    await hass.async_block_till_done()
+    await coordinator.activate(second)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["volume_level"] == 0.1
+
+    await coordinator.release(first)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["volume_level"] == 0.2
+    await coordinator.release(second)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["volume_level"] == 0.7
+
+
+async def test_user_volume_change_becomes_new_intended_volume(hass) -> None:
+    entity_id = "media_player.kitchen"
+    calls: list[str] = []
+    hass.states.async_set(entity_id, "playing", {"volume_level": 0.7, "media_title": "Test"})
+    await _register_player_services(hass, entity_id, calls)
+    coordinator = MediaInterferenceCoordinator(hass)
+    lease = await coordinator.acquire("kitchen", (entity_id,), GuardPolicy("duck", 0.1, 0))
+    await coordinator.activate(lease)
+    await hass.async_block_till_done()
+
+    hass.states.async_set(entity_id, "playing", {"volume_level": 0.4, "media_title": "Test"}, context=Context())
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["volume_level"] == 0.1
+    await coordinator.release(lease)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["volume_level"] == 0.4
+
+
+async def test_new_playback_during_lease_is_ducked_and_restored_independently(hass) -> None:
+    entity_id = "media_player.kitchen"
+    calls: list[str] = []
+    hass.states.async_set(entity_id, "playing", {"volume_level": 0.7, "media_title": "Old"})
+    await _register_player_services(hass, entity_id, calls)
+    coordinator = MediaInterferenceCoordinator(hass)
+    lease = await coordinator.acquire("kitchen", (entity_id,), GuardPolicy("duck", 0.1, 0))
+    await coordinator.activate(lease)
+    await hass.async_block_till_done()
+
+    hass.states.async_set(entity_id, "playing", {"volume_level": 0.65, "media_title": "New"}, context=Context())
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["volume_level"] == 0.1
+    await coordinator.release(lease)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["volume_level"] == 0.65
+
+
+async def test_pause_holder_release_resumes_into_remaining_duck(hass) -> None:
+    entity_id = "media_player.kitchen"
+    calls: list[str] = []
+    hass.states.async_set(entity_id, "playing", {"volume_level": 0.7, "media_title": "Test"})
+    await _register_player_services(hass, entity_id, calls)
+    coordinator = MediaInterferenceCoordinator(hass)
+    duck = await coordinator.acquire("kitchen", (entity_id,), GuardPolicy("duck", 0.1, 0))
+    pause = await coordinator.acquire("hall", (entity_id,), GuardPolicy("pause", 0.1, 0))
+    await coordinator.activate(duck)
+    await hass.async_block_till_done()
+    await coordinator.activate(pause)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "paused"
+
+    await coordinator.release(pause)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "playing"
+    assert hass.states.get(entity_id).attributes["volume_level"] == 0.1
+    await coordinator.release(duck)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["volume_level"] == 0.7
+
+
 async def test_pause_is_not_restored_after_user_stop(hass) -> None:
     entity_id = "media_player.kitchen"
     calls: list[str] = []

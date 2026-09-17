@@ -52,6 +52,8 @@ class _PlayerControl:
     unsub: callable | None = None
     task: asyncio.Task[None] | None = None
     restore_task: asyncio.Task[None] | None = None
+    restore_delay: float = 0.0
+    applied_duck_volume: float | None = None
 
 
 def _volume(state: State | None) -> float | None:
@@ -87,7 +89,10 @@ class MediaInterferenceCoordinator:
             return
         for entity_id in lease.entity_ids:
             control = self._players.setdefault(entity_id, _PlayerControl())
+            had_holders = bool(control.holders)
+            pending_restore = control.restore_task is not None
             control.holders[lease.lease_id] = lease
+            control.restore_delay = max(control.restore_delay, lease.policy.restore_delay)
             if control.restore_task:
                 control.restore_task.cancel()
                 control.restore_task = None
@@ -95,7 +100,10 @@ class MediaInterferenceCoordinator:
                 control.unsub = async_track_state_change_event(self.hass, [entity_id], self._on_state_change)
             state = self.hass.states.get(entity_id)
             if state and state.state == _PLAYING:
-                self._capture_playing(control, state)
+                # Additional/overlapping leases see the already-ducked state;
+                # never replace the original intended volume with the ceiling.
+                if not had_holders and not pending_restore:
+                    self._capture_playing(control, state)
                 self._schedule(entity_id, control)
 
     async def release(self, lease: GuardLease) -> None:
@@ -108,8 +116,9 @@ class MediaInterferenceCoordinator:
             if control.holders:
                 self._schedule(entity_id, control)
                 continue
-            delay = max((holder.policy.restore_delay for holder in [lease]), default=0.0)
-            control.restore_task = self.hass.async_create_task(self._restore_later(entity_id, control, delay))
+            control.restore_task = self.hass.async_create_task(
+                self._restore_later(entity_id, control, control.restore_delay)
+            )
 
     async def close(self) -> None:
         """Cancel timers/listeners and best-effort restore outstanding controls."""
@@ -143,10 +152,14 @@ class MediaInterferenceCoordinator:
             control.paused_by_guard = False
             return
         if new_state.state == _PLAYING:
+            # A non-guard state update means any previous ceiling is no
+            # longer ownership evidence; capture the user's/agent's intent.
+            control.applied_duck_volume = None
             current_token = _token(new_state)
             if control.token is not None and current_token is not None and current_token != control.token:
-                # A new user/agent item must never receive a stale restoration.
-                control.invalidated = True
+                # Discard ownership of the old item, then treat this as fresh
+                # playback which independently entered while leases are active.
+                control.invalidated = False
                 control.paused_by_guard = False
             self._capture_playing(control, new_state)
             self._schedule(entity_id, control)
@@ -171,6 +184,12 @@ class MediaInterferenceCoordinator:
     async def _apply(self, entity_id: str, control: _PlayerControl) -> None:
         action, ceiling = self._effective(control)
         state = self.hass.states.get(entity_id)
+        if state is None:
+            return
+        if action == _ACTION_DUCK and control.paused_by_guard and state.state != _PLAYING:
+            await self._call(entity_id, control, "media_play")
+            control.paused_by_guard = False
+            state = self.hass.states.get(entity_id)
         if state is None or state.state != _PLAYING:
             return
         if action == _ACTION_PAUSE:
@@ -179,9 +198,12 @@ class MediaInterferenceCoordinator:
             return
         if action == _ACTION_DUCK and ceiling is not None:
             actual = _volume(state)
-            if actual is not None and actual > ceiling:
+            target = min(control.intended_volume, ceiling) if control.intended_volume is not None else ceiling
+            guard_still_owns_level = control.applied_duck_volume is not None and actual == control.applied_duck_volume
+            if actual is not None and (actual > target or (guard_still_owns_level and actual != target)):
                 # Intended volume is only captured from non-guard state changes.
-                await self._call(entity_id, control, "volume_set", {"volume_level": ceiling})
+                await self._call(entity_id, control, "volume_set", {"volume_level": target})
+                control.applied_duck_volume = target
 
     async def _restore_later(self, entity_id: str, control: _PlayerControl, delay: float) -> None:
         try:
