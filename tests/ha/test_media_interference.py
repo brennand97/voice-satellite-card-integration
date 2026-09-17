@@ -2,15 +2,27 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from homeassistant.core import Context
 
+from custom_components.voice_satellite import _find_entity
+from custom_components.voice_satellite.const import DOMAIN
 from custom_components.voice_satellite.media_interference import (
     GuardPolicy,
     MediaInterferenceCoordinator,
 )
 
 pytestmark = pytest.mark.usefixtures("enable_custom_integrations")
+
+
+def test_entity_lookup_ignores_integration_wide_coordinator() -> None:
+    entity = SimpleNamespace(entity_id="assist_satellite.kitchen")
+    hass = SimpleNamespace(
+        data={DOMAIN: {"media_interference_coordinator": object(), "entry": entity}}
+    )
+    assert _find_entity(hass, entity.entity_id) is entity
 
 
 async def _register_player_services(hass, entity_id: str, calls: list[str]) -> None:

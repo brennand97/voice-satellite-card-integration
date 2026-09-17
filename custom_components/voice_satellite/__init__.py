@@ -49,7 +49,10 @@ PLATFORMS = [Platform.ASSIST_SATELLITE, Platform.BINARY_SENSOR, Platform.MEDIA_P
 def _find_entity(hass: HomeAssistant, entity_id: str, predicate=None):
     """Find a registered entity by entity_id, with optional extra filter."""
     for _, ent in hass.data.get(DOMAIN, {}).items():
-        if ent.entity_id == entity_id and (predicate is None or predicate(ent)):
+        # Integration-wide coordinators share DOMAIN storage with entities.
+        if getattr(ent, "entity_id", None) == entity_id and (
+            predicate is None or predicate(ent)
+        ):
             return ent
     return None
 
