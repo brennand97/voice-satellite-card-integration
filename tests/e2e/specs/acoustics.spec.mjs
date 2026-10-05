@@ -28,6 +28,18 @@ if (!directory) {
         localStorage.setItem('selectedLanguage',JSON.stringify('en'));
         localStorage.setItem('vs-satellite-entity',fixture.entity);
         localStorage.setItem('vs-panel-config',JSON.stringify(fixture.panel));
+        window.__e2eSpeechPlayback = { playing: 0, advanced: 0, ended: 0, errors: 0 };
+        const play = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = function (...args) {
+          if (!this._e2eSpeechWatched && this.src.includes('/audio/v1/')) {
+            this._e2eSpeechWatched = true;
+            this.addEventListener('playing', () => window.__e2eSpeechPlayback.playing++);
+            this.addEventListener('timeupdate', () => { if (this.currentTime > 0) window.__e2eSpeechPlayback.advanced++; });
+            this.addEventListener('ended', () => window.__e2eSpeechPlayback.ended++);
+            this.addEventListener('error', () => window.__e2eSpeechPlayback.errors++);
+          }
+          return play.apply(this, args); // Real native playback, never a mocked success.
+        };
         const capture=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
         navigator.mediaDevices.getUserMedia=async (...args) => {
           const stream=await capture(...args);
@@ -65,6 +77,12 @@ if (!directory) {
           expect(response.ok()).toBe(true);
           const truth=await response.json();
           expect(truth.timers.some(t=>/pasta/i.test(t.name) && t.seconds_remaining>0 && t.seconds_remaining<=20)).toBe(true);
+          // A successful tool action is not a spoken reply. Require post-tool
+          // audio delivery AND native browser playback/time advancement.
+          await expect.poll(async () => (await stats()).audio_deliveries.some(d => d.timer_starts_seen > before.timer_starts.length), {timeout:15_000}).toBe(true);
+          await expect.poll(() => page.evaluate(() => window.__e2eSpeechPlayback.advanced), {timeout:15_000}).toBeGreaterThan(0);
+          await expect.poll(() => page.evaluate(() => window.__e2eSpeechPlayback.ended), {timeout:15_000}).toBeGreaterThan(0);
+          expect(await page.evaluate(() => window.__e2eSpeechPlayback.errors)).toBe(0);
         } else {
           await expect(page.locator('.vs-chat-msg').filter({hasText:'Test response: test second utterance'})).toBeVisible({timeout:10_000});
         }
@@ -81,7 +99,7 @@ if (!directory) {
       for (const key of [c.password,c.transport_token,c.signing_key,c.tokens.access_token,c.tokens.refresh_token]) if(key) logs=logs.replaceAll(key,'[REDACTED]');
       logs=logs.replace(/([?&](?:token|authSig|signature)=)[^&\s"']+/gi,'$1[REDACTED]');
       fs.writeFileSync(info.outputPath('session-diagnostic.json'),logs);
-      const result=JSON.stringify({...sample,detection,after:await stats()},null,2);
+      const result=JSON.stringify({...sample,detection,playback:await page.evaluate(() => window.__e2eSpeechPlayback),after:await stats()},null,2);
       fs.writeFileSync(info.outputPath('acoustic-result.json'),result);
       await info.attach('acoustic-result',{path:info.outputPath('acoustic-result.json'),contentType:'application/json'});
       if (live && !page.isClosed()) {
