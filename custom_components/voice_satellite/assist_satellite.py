@@ -55,6 +55,7 @@ from .const import (
     CONF_EXTERNAL_TRANSPORT_URL,
     CONF_EXTERNAL_TRANSPORT_VERIFY_TLS,
     CONF_INITIAL_PROMPT,
+    CONF_PROMPT_APPEND,
     CONF_INITIAL_VOICE,
     CONF_MEDIA_GUARD_ACTION,
     CONF_MEDIA_GUARD_ENTITIES,
@@ -1524,6 +1525,7 @@ class VoiceSatelliteEntity(AssistSatelliteEntity):
                 tool_profile=profile.get(CONF_TOOL_PROFILE),
                 requested_tools=tuple(profile[CONF_REQUESTED_TOOLS]) if isinstance(profile.get(CONF_REQUESTED_TOOLS), list) else None,
                 initial_prompt=profile.get(CONF_INITIAL_PROMPT),
+                prompt_append=profile.get(CONF_PROMPT_APPEND),
                 initial_voice=profile.get(CONF_INITIAL_VOICE),
             )
             return self._external_runtime

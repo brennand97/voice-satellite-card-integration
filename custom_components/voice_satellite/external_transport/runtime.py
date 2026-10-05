@@ -33,7 +33,7 @@ class _Binding:
 class ExternalConversationRuntime:
     """Own one provider WebSocket across independently subscribed card runs."""
 
-    def __init__(self, *, http: ClientSession, url: str, token: str, verify_tls: bool, ready_timeout: float, session_id: str, satellite_entity_id: str, satellite_name: str, device_id: str | None = None, tool_profile: str | None = None, requested_tools: tuple[str, ...] | None = None, initial_prompt: str | None = None, initial_voice: str | None = None) -> None:
+    def __init__(self, *, http: ClientSession, url: str, token: str, verify_tls: bool, ready_timeout: float, session_id: str, satellite_entity_id: str, satellite_name: str, device_id: str | None = None, tool_profile: str | None = None, requested_tools: tuple[str, ...] | None = None, initial_prompt: str | None = None, prompt_append: str | None = None, initial_voice: str | None = None) -> None:
         del verify_tls  # selected when Home Assistant creates ``http``
         self._http, self._url, self._token = http, url, token
         self._ready_timeout = ready_timeout
@@ -43,6 +43,7 @@ class ExternalConversationRuntime:
         self._tool_profile = tool_profile
         self._requested_tools = requested_tools
         self._initial_prompt = initial_prompt
+        self._prompt_append = prompt_append
         self._initial_voice = initial_voice
         self._client: ExternalTransportClient | None = None
         self._connect_lock = asyncio.Lock()
@@ -177,7 +178,7 @@ class ExternalConversationRuntime:
         async with self._connect_lock:
             if self._client is not None:
                 return
-            client = ExternalTransportClient(self._http, self._url, self._token, SessionStart(self._session_id, self._satellite_entity_id, self._satellite_name, conversation_id, wake_word, tool_profile=self._tool_profile, requested_tools=self._requested_tools, initial_prompt=self._initial_prompt, initial_voice=self._initial_voice, device_id=self._device_id), self._ready_timeout)
+            client = ExternalTransportClient(self._http, self._url, self._token, SessionStart(self._session_id, self._satellite_entity_id, self._satellite_name, conversation_id, wake_word, tool_profile=self._tool_profile, requested_tools=self._requested_tools, initial_prompt=self._initial_prompt, prompt_append=self._prompt_append, initial_voice=self._initial_voice, device_id=self._device_id), self._ready_timeout)
             capabilities = await client.connect()
             if not (capabilities.transcription and capabilities.text_input and capabilities.streaming_audio_url and capabilities.interruptions and capabilities.conversation_continuation):
                 await client.close()

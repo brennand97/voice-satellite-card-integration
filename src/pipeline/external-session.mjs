@@ -17,17 +17,15 @@ export const ExternalState = Object.freeze({
 export class ExternalSessionController {
   constructor({
     log, playResponseAudio, stopResponseAudio, restoreCaptureVisualization,
-    setPresentationState, showInteractionUi, hideInteractionUi, stopPipeline,
+    setPresentationState, showInteractionUi, exitInteraction,
     schedule = (fn, delay) => setTimeout(fn, delay), cancelScheduled = id => clearTimeout(id), followupTimeoutMs = 60000,
-    terminalUiTimeoutMs = 3000,
   }) {
     Object.assign(this, {
       _log: log, _playResponseAudio: playResponseAudio, _stopResponseAudio: stopResponseAudio,
       _restoreCaptureVisualization: restoreCaptureVisualization,
       _setPresentationState: setPresentationState, _showInteractionUi: showInteractionUi,
-      _hideInteractionUi: hideInteractionUi, _stopPipeline: stopPipeline,
+      _exitInteraction: exitInteraction,
       _schedule: schedule, _cancelScheduled: cancelScheduled, _followupTimeoutMs: followupTimeoutMs,
-      _terminalUiTimeoutMs: terminalUiTimeoutMs,
     });
     this._state = ExternalState.IDLE;
     this._providerResponseId = null;
@@ -35,7 +33,6 @@ export class ExternalSessionController {
     this._playbackResponseId = null;
     this._playbackTurnId = null;
     this._followupTimer = null;
-    this._terminalUiTimer = null;
   }
 
   get state() { return this._state; }
@@ -58,7 +55,6 @@ export class ExternalSessionController {
   }
   _clearTerminalUiTimer() {
     if (this._terminalUiTimer !== null) this._cancelScheduled(this._terminalUiTimer);
-    this._terminalUiTimer = null;
   }
   _armFollowupTimer() {
     this._clearFollowupTimer();
@@ -84,7 +80,6 @@ export class ExternalSessionController {
 
   onRunStart() {
     this._clearFollowupTimer();
-    this._clearTerminalUiTimer();
     // A replacement subscription can arrive before its displaced event. Do
     // not orphan an old native handle while resetting correlation ownership.
     this._stopPlayback('new_run');
@@ -157,28 +152,13 @@ export class ExternalSessionController {
     this._clearFollowupTimer();
     this._stopPlayback(reason);
     this._providerResponseId = this._providerTurnId = null;
-    this._stopPipeline(reason);
-    this._hideInteractionUi();
+    this._exitInteraction(reason);
     this._transition(ExternalState.TERMINATED);
   }
 
   onTerminal(reason = 'session_finished') {
-    if ([ExternalState.IDLE, ExternalState.TERMINATING, ExternalState.TERMINATED].includes(this._state)) return;
-    this._transition(ExternalState.TERMINATING);
-    this._clearFollowupTimer();
-    this._clearTerminalUiTimer();
-    this._stopPlayback(reason);
-    this._providerResponseId = this._providerTurnId = null;
-    // The server has already closed its consumer. Tear down the delegated HA
-    // run now so native PCM cannot continue filling its bounded audio queue.
-    // Keep the final transcript visible briefly, but force cleanup afterward
-    // even when normal run-end cleanup would defer for media linger.
-    this._stopPipeline(reason);
-    this._terminalUiTimer = this._schedule(() => {
-      this._terminalUiTimer = null;
-      this._hideInteractionUi();
-    }, this._terminalUiTimeoutMs);
-    this._transition(ExternalState.TERMINATED);
+    if (this._state === ExternalState.IDLE) return;
+    this.onExplicitStop(reason);
   }
 
   onFailure(error) {
@@ -188,7 +168,6 @@ export class ExternalSessionController {
   }
 
   destroy() {
-    this._clearTerminalUiTimer();
     this.onExplicitStop('session_destroyed');
   }
 }

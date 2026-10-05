@@ -31,6 +31,7 @@ class SessionStart:
     tool_profile: str | None = None
     requested_tools: tuple[str, ...] | None = None
     initial_prompt: str | None = None
+    prompt_append: str | None = None
     initial_voice: str | None = None
     device_id: str | None = None
     input_modalities: tuple[str, ...] = ("audio", "text")
@@ -51,6 +52,8 @@ class SessionStart:
                 "output_modalities": list(self.output_modalities),
             },
         }
+        if self.prompt_append is not None:
+            message["conversation"]["prompt_append"] = self.prompt_append
         if self.client_kind == "satellite":
             message["satellite"] = {"entity_id": self.satellite_entity_id, "name": self.satellite_name}
         else:

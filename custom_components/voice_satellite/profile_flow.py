@@ -15,6 +15,7 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_INITIAL_PROMPT,
+    CONF_PROMPT_APPEND,
     CONF_INITIAL_VOICE,
     CONF_PROFILE_NAME,
     CONF_REQUESTED_TOOLS,
@@ -79,6 +80,12 @@ class ExternalConversationProfileFlow(ConfigSubentryFlow):
                 TextSelectorConfig(multiline=True, type=TextSelectorType.TEXT)
             ),
             vol.Optional(
+                CONF_PROMPT_APPEND,
+                description={"suggested_value": data.get(CONF_PROMPT_APPEND, "")},
+            ): TextSelector(
+                TextSelectorConfig(multiline=True, type=TextSelectorType.TEXT)
+            ),
+            vol.Optional(
                 CONF_INITIAL_VOICE, default=data.get(CONF_INITIAL_VOICE, "")
             ): str,
             vol.Optional(
@@ -108,7 +115,7 @@ class ExternalConversationProfileFlow(ConfigSubentryFlow):
             data[CONF_TOOL_PROFILE] = tool_profile.strip()
         else:
             data.pop(CONF_TOOL_PROFILE, None)
-        for key, limit in ((CONF_INITIAL_PROMPT, 16_000), (CONF_INITIAL_VOICE, 128)):
+        for key, limit in ((CONF_INITIAL_PROMPT, 16_000), (CONF_PROMPT_APPEND, 16_000), (CONF_INITIAL_VOICE, 128)):
             value = data.get(key, "")
             if not isinstance(value, str) or len(value.encode()) > limit:
                 raise ValueError("invalid_profile")

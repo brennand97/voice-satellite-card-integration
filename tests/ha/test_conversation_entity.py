@@ -54,7 +54,7 @@ class FakeClient:
             yield event
 
 
-def _entity(hass, *, requested_tools=None):
+def _entity(hass, *, requested_tools=None, prompt_append=None):
     entry = SimpleNamespace(
         entry_id="service-entry",
         data={
@@ -63,6 +63,8 @@ def _entity(hass, *, requested_tools=None):
         },
     )
     subentry_data = {CONF_TOOL_PROFILE: "home-generic"}
+    if prompt_append is not None:
+        subentry_data["prompt_append"] = prompt_append
     if requested_tools is not None:
         subentry_data[CONF_REQUESTED_TOOLS] = requested_tools
     subentry = SimpleNamespace(
@@ -104,12 +106,14 @@ async def test_text_conversation_is_text_only_and_uses_exact_requested_tools(has
         deltas = [
             delta
             async for delta in _entity(
-                hass, requested_tools=["homeassistant__GetLiveContext"]
+                hass, requested_tools=["homeassistant__GetLiveContext"],
+                prompt_append="Personal context",
             )._event_deltas(SimpleNamespace(conversation_id="conversation-id", text="Hi"))
         ]
 
     session_start = factory_calls[0][3]
     assert session_start.client_kind == "ha_conversation"
+    assert session_start.prompt_append == "Personal context"
     assert session_start.device_id is None
     assert session_start.input_modalities == ("text",)
     assert session_start.output_modalities == ("text",)

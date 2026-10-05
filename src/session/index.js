@@ -121,23 +121,11 @@ export class VoiceSatelliteSession {
       restoreCaptureVisualization: () => this._audio.restoreCaptureVisualization(),
       setPresentationState: (state) => setState(this, State[state.toUpperCase()]),
       showInteractionUi: () => this._uiProxy.showBlurOverlay(BlurReason.PIPELINE),
-      hideInteractionUi: () => {
-        // Explicit/terminal External Transport stops must not leave an
-        // orphaned transcript after the listening UI has been dismissed.
-        this._chat?.clear?.();
-        this._uiProxy.stopReactive();
-        this._uiProxy.hideBar();
-        this._uiProxy.hideBlurOverlay(BlurReason.PIPELINE);
-      },
-      stopPipeline: () => {
-        // Ending a conversation is not stopping the satellite: timer/alert
-        // subscriptions must stay alive, and the next wake must still work.
-        // Full teardown owns cleanup and must not schedule a fresh idle run.
+      exitInteraction: () => {
         if (this._tearingDown) return;
-        this._tts.stop();
-        this._audio.stopSending();
-        this._pipeline.clearContinueState();
-        this._pipeline.restart(0);
+        // Same full exit as Escape/double-tap, not a second UI cleanup path.
+        // Do not dispatch timer-alert dismissal or play a redundant done chime.
+        this._doubleTap.cancelInteraction({ playDoneChime: false });
       },
       followupTimeoutMs: 60000,
     });

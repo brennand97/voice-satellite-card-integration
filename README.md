@@ -121,6 +121,12 @@ If prompted, add `brennand97/voice-satellite-card-integration` as an **Integrati
 7. Configure wake word, audio, and appearance settings as needed
 8. The engine starts automatically once an entity is assigned - if the browser blocks auto-start due to a missing user gesture, a floating microphone button will appear; tap it to start
 
+## Profile prompt customization
+
+In an External Conversation Service, edit its conversation profile. Leave **Full prompt override** empty to keep the transport’s default instructions, and use **Append to prompt** for personal information or preferences. If both are filled, the addition follows the full override. Existing overrides are preserved; nothing is automatically migrated. Changes apply to new sessions and require a transport that supports `conversation.prompt_append`.
+
+Agent-ended sessions use the same full conversation exit as Escape/double-tap, clearing transcript, playback and interaction UI while preserving timers and their alerts.
+
 ## Configuration
 
 The **Voice Satellite** sidebar panel is the central configuration hub. Pick the satellite entity for this browser, tune microphone processing, choose a skin, and set up the screensaver - all stored per-browser in local storage. The optional [Mini Card](docs/configuration.md#mini-card) provides an inline, text-first dashboard variant when you don't want the fullscreen overlay.

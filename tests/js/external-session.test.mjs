@@ -13,8 +13,7 @@ function harness() {
     restoreCaptureVisualization: () => calls.push(['restore']),
     setPresentationState: (state) => calls.push(['state', state]),
     showInteractionUi: () => calls.push(['show']),
-    hideInteractionUi: () => calls.push(['hide']),
-    stopPipeline: (reason) => calls.push(['pipeline-stop', reason]),
+    exitInteraction: (reason) => calls.push(['pipeline-stop', reason], ['hide']),
     schedule: (fn, delay) => { const id = ++nextTimer; timers.set(id, { fn, delay }); return id; },
     cancelScheduled: (id) => timers.delete(id),
     followupTimeoutMs: 1000,
@@ -114,7 +113,7 @@ test('active state is exposed only while an External run can be stopped', () => 
   assert.equal(h.controller.isActive(), false);
 });
 
-test('server terminal event stops PCM but clears the final transcript after three seconds', () => {
+test('server terminal event uses the full exit immediately without a lingering UI timer', () => {
   const h = harness();
   activePlayback(h);
   h.controller.onTerminal('session_finished');
@@ -122,11 +121,10 @@ test('server terminal event stops PCM but clears the final transcript after thre
   assert.equal(h.controller.state, ExternalState.TERMINATED);
   assert.deepEqual(h.calls.filter(([name]) => name === 'stop'), [['stop', 'response-1', 'session_finished']]);
   assert.deepEqual(h.calls.filter(([name]) => name === 'pipeline-stop'), [['pipeline-stop', 'session_finished']]);
-  assert.deepEqual(h.calls.filter(([name]) => name === 'hide'), []);
-  assert.deepEqual([...h.timers.values()].map(({ delay }) => delay), [3000]);
-
-  h.fireTimers();
   assert.deepEqual(h.calls.filter(([name]) => name === 'hide'), [['hide']]);
+  assert.equal(h.timers.size, 0);
+  h.controller.onTerminal('session_finished');
+  assert.deepEqual(h.calls.filter(([name]) => name === 'pipeline-stop'), [['pipeline-stop', 'session_finished']]);
 });
 
 test('explicit stop is terminal and cancels playback exactly once', () => {

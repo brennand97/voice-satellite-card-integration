@@ -156,6 +156,13 @@ export class DoubleTapHandler {
       return;
     }
 
+    this.cancelInteraction();
+  }
+
+  /** Shared full conversation exit; never dispatches to timer-alert dismissal. */
+  cancelInteraction({ playDoneChime = true } = {}) {
+    this._card.show?.dismiss({ skipPipelineRestart: true, skipDoneChime: true });
+    this._card.audio.stopSending();
     // Cancel image linger timeout if active
     if (this._card._imageLingerTimeout) {
       clearTimeout(this._card._imageLingerTimeout);
@@ -175,7 +182,7 @@ export class DoubleTapHandler {
       const dismiss = this._card._mediaLingerDismiss;
       this._card._mediaLingerDismiss = null;
       dismiss();
-      if (getSwitchState(this._card.hass, this._card.config.satellite_entity, 'wake_sound') !== false) {
+      if (playDoneChime && getSwitchState(this._card.hass, this._card.config.satellite_entity, 'wake_sound') !== false) {
         this._card.tts.playChime('done');
       }
       return;
@@ -200,7 +207,7 @@ export class DoubleTapHandler {
     this._card.screensaver.stopExternalKeepalive();
     kiosk.releaseScreensaver('voice');
 
-    if (getSwitchState(this._card.hass, this._card.config.satellite_entity, 'wake_sound') !== false) {
+    if (playDoneChime && getSwitchState(this._card.hass, this._card.config.satellite_entity, 'wake_sound') !== false) {
       this._card.tts.playChime('done');
     }
 

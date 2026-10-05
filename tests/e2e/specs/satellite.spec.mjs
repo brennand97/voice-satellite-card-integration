@@ -279,6 +279,8 @@ test.describe('live media and interruption', () => {
       return session.isStarted && !session.audio._mediaStream && session.pipeline.binaryHandlerId === null;
     });
     const after = await stats(ha,request);
+    // EndSession must use the same full dismissal as Escape, not merely unblur.
+    await expect(page.locator('.vs-chat-msg')).toHaveCount(0);
     await expect(page.locator('.vs-timer-pill').filter({hasText:'Survives conversation'})).toBeVisible();
     await expect(page.locator('.vs-timer-alert')).toBeVisible({timeout:15_000});
     expect((await stats(ha,request)).input_bytes).toBe(after.input_bytes);

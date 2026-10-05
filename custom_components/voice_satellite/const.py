@@ -11,6 +11,7 @@ CONF_REQUESTED_TOOLS: Final[str] = "requested_tools"
 CONF_CONVERSATION_SERVICE_ENTRY_ID: Final[str] = "conversation_service_entry_id"
 CONF_CONVERSATION_PROFILE_ID: Final[str] = "conversation_profile_id"
 CONF_INITIAL_PROMPT: Final[str] = "initial_prompt"
+CONF_PROMPT_APPEND: Final[str] = "prompt_append"
 CONF_INITIAL_VOICE: Final[str] = "initial_voice"
 
 # Per-physical-Satellite nearby media guard. These are ConfigEntry options,

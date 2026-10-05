@@ -219,3 +219,25 @@ def test_profile_schema_uses_serializable_text_requested_tools_field() -> None:
     flow = object.__new__(ReconfigureFlow)
     flow._options = {"requested_tools": ["homeassistant__GetLiveContext"]}
     _assert_schema_is_ui_serializable(flow._schema())
+
+@pytest.mark.parametrize("value", ["Seattle, Ballard", "", "  ", "é" * 8001, None])
+def test_prompt_append_validation_and_utf8_limit(value):
+    data = {"tool_profile": "default", "prompt_append": value}
+    if value is None or len(value.encode()) > 16000:
+        with pytest.raises(ValueError, match="invalid_profile"):
+            ExternalConversationProfileFlow._validate(data)
+    else:
+        parsed = ExternalConversationProfileFlow._validate(data)
+        assert parsed.get("prompt_append") == (value if value.strip() else None)
+
+
+def test_prompt_append_has_multiline_selector_and_preserves_override():
+    flow = object.__new__(ExternalConversationProfileFlow)
+    flow.context = {"source": "reconfigure"}
+    flow._options = {"initial_prompt": "Existing override", "prompt_append": "Personal"}
+    schema = flow._schema().schema
+    selector = next(v for k, v in schema.items() if getattr(k, "schema", None) == "prompt_append")
+    assert selector.config["multiline"] is True
+    parsed = flow._validate({"tool_profile": "default", **flow._options})
+    assert parsed["initial_prompt"] == "Existing override"
+    assert parsed["prompt_append"] == "Personal"
