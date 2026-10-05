@@ -195,6 +195,10 @@ The sidebar panel ships with a **Diagnostics & troubleshooting** section that ru
 
 See the [Troubleshooting reference](docs/troubleshooting.md) for the most common issues and their fixes.
 
+## Local integration testing
+
+See [tests/e2e/README.md](tests/e2e/README.md) for disposable Home Assistant + HACS, browser screenshots, deterministic transport/tool fixtures and production-isolated debugging. Shared runtime infrastructure lives in the sibling `ha-integration-testbed` repository; this repository owns the satellite-specific fixtures and assertions.
+
 ## Contributing
 
 Contributions are welcome. Please feel free to submit issues. Pull requests are currently not being accepted.

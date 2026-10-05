@@ -18,7 +18,7 @@ export class ExternalSessionController {
   constructor({
     log, playResponseAudio, stopResponseAudio, restoreCaptureVisualization,
     setPresentationState, showInteractionUi, hideInteractionUi, stopPipeline,
-    schedule = setTimeout, cancelScheduled = clearTimeout, followupTimeoutMs = 60000,
+    schedule = (fn, delay) => setTimeout(fn, delay), cancelScheduled = id => clearTimeout(id), followupTimeoutMs = 60000,
     terminalUiTimeoutMs = 3000,
   }) {
     Object.assign(this, {

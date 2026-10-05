@@ -10,7 +10,7 @@
  * to a session. Zero changes to any manager code.
  */
 
-import { State, DEFAULT_CONFIG } from '../constants.js';
+import { State, BlurReason, DEFAULT_CONFIG } from '../constants.js';
 import { Logger } from '../logger.js';
 import { AudioManager } from '../audio';
 import { AnalyserManager } from '../audio/analyser.js';
@@ -126,7 +126,16 @@ export class VoiceSatelliteSession {
         this._uiProxy.hideBar();
         this._uiProxy.hideBlurOverlay(BlurReason.PIPELINE);
       },
-      stopPipeline: (reason) => this.teardown(reason),
+      stopPipeline: () => {
+        // Ending a conversation is not stopping the satellite: timer/alert
+        // subscriptions must stay alive, and the next wake must still work.
+        // Full teardown owns cleanup and must not schedule a fresh idle run.
+        if (this._tearingDown) return;
+        this._tts.stop();
+        this._audio.stopSending();
+        this._pipeline.clearContinueState();
+        this._pipeline.restart(0);
+      },
       followupTimeoutMs: 60000,
     });
     this._doubleTap = new DoubleTapHandler(this);
@@ -512,6 +521,7 @@ export class VoiceSatelliteSession {
     this._logger.log('session', `Tearing down session (${reason})`);
     // Clear only External lifecycle ownership here. The common teardown below
     // remains the single place that stops mic, subscription, and TTS.
+    this._tearingDown = true;
     this._externalSession?.onTerminal(reason);
     if (this._imageLingerTimeout) {
       clearTimeout(this._imageLingerTimeout);
@@ -541,6 +551,7 @@ export class VoiceSatelliteSession {
     this._starting = false;
     this._startAttempted = false;
     this._lastSyncedSatelliteState = null;
+    this._tearingDown = false;
   }
 
   // ── Wake word lazy loading ─────────────────────────────────────

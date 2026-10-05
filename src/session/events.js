@@ -840,9 +840,19 @@ export async function triggerWake(session, opts = {}) {
   // Block if mid-interaction - the user is already in STT/INTENT/TTS
   // and another wake would just thrash state.
   const interacting = INTERACTING_STATES.includes(session.currentState);
-  if (interacting) {
+  // External text runs have no PCM consumer. A deliberate wake must be able
+  // to hand them off to audio; otherwise the user cannot barge into a spoken
+  // service-origin response. Existing audio capture still owns provider VAD.
+  const externalTextBarge = session._externalSession?.isActive()
+    && session.pipeline.binaryHandlerId == null;
+  if (interacting && !externalTextBarge) {
     session.logger.log('wake', `Ignored - already interacting (${session.currentState})`);
     return;
+  }
+
+  if (interacting && externalTextBarge) {
+    session.show?.dismiss({ skipPipelineRestart: true, skipDoneChime: true });
+    session._externalSession.onSpeechStarted({});
   }
 
   if (!session._hasStarted) {
@@ -853,6 +863,9 @@ export async function triggerWake(session, opts = {}) {
     try { await session.start(); } catch (_) { /* fall through */ }
   }
 
+  // Revoke a pending idle/follow-up restart before acquiring the mic. A late
+  // restart callback otherwise stops the newly acquired user-wake stream.
+  await session.pipeline.stop();
   const mode = getWakeWordMode(session);
 
   // Seamless one-shot ("hey vesta turn off the lights"), Kiosk Satellite only.
@@ -875,7 +888,7 @@ export async function triggerWake(session, opts = {}) {
     } else if (mode === WAKE_MODE_HA) {
       // Server pipeline is currently waiting for a wake word.  Stop it
       // first so the next start() begins from STT instead of wake_word.
-      await session.pipeline.stop();
+      // The delegated run was stopped above.
     } else if (mode === WAKE_MODE_DISABLED) {
       // Arm buffering *before* the mic comes up. Kiosk Satellite flushes the
       // audio captured since the wake word ended the moment the stream opens,

@@ -61,6 +61,7 @@ class ExternalConversationRuntime:
         self._event_task: asyncio.Task[None] | None = None
         self._audio_task: asyncio.Task[None] | None = None
         self._closed = False
+        self._closing = False
 
     @property
     def closed(self) -> bool:
@@ -126,8 +127,9 @@ class ExternalConversationRuntime:
                 binding.done.set_result(None)
 
     async def close(self, reason: str) -> None:
-        if self._closed:
+        if self._closing:
             return
+        self._closing = True
         self._closed = True
         async with self._lock:
             binding = self._binding
@@ -293,8 +295,14 @@ class ExternalConversationRuntime:
             # Response completion is not a transport/binding completion. Keep
             # forwarding native PCM through the speculative audio turn so the
             # provider can detect a follow-up or a real barge-in.
-        elif event_type in {"session.finished", "error"} and binding and not binding.done.done():
-            binding.done.set_result(None)
+        elif event_type in {"session.finished", "error"}:
+            # The provider has ended the session: a speculative input turn
+            # cannot be ended on this terminal client, nor reused on next wake.
+            self._closed = True
+            self._turn_id = self._turn_kind = None
+            if binding and not binding.done.done():
+                binding.terminal_reason = "agent_ended" if event_type == "session.finished" else "provider_error"
+                binding.done.set_result(None)
 
     def _fail_binding(self, binding: _Binding, err: Exception) -> None:
         _LOGGER.warning("External transport failed for binding: %s", err)

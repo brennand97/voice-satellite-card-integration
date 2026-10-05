@@ -462,8 +462,12 @@ export class PipelineManager {
       this._restartTimeout = null;
     }
 
-    this.stop().then(() => {
+    const stopped = this.stop();
+    const restartGen = this._pipelineGen;
+    stopped.then(() => {
+      if (restartGen !== this._pipelineGen) return;
       this._restartTimeout = setTimeout(() => {
+        if (restartGen !== this._pipelineGen) return;
         this._restartTimeout = null;
         this._isRestarting = false;
 
@@ -539,7 +543,10 @@ export class PipelineManager {
     // Store ask_question callback if provided
     this._askQuestionCallback = opts.onSttEnd || null;
 
-    this.stop().then(() => {
+    const stopped = this.stop();
+    const restartGen = this._pipelineGen;
+    stopped.then(() => {
+      if (restartGen !== this._pipelineGen) return;
       this._isRestarting = false;
       this._continueMode = true;
       const startOpts = {

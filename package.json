@@ -7,6 +7,13 @@
     "prebuild": "node scripts/sync-version.js && node scripts/copy-fonts.js && node scripts/copy-vendor.js",
     "build": "webpack --mode production",
     "test:js": "node --test tests/js/*.test.mjs",
+    "e2e:prepare": "python3 tests/e2e/run.py prepare",
+    "e2e:up": "python3 tests/e2e/run.py up",
+    "e2e:test": "python3 tests/e2e/run.py test",
+    "e2e:down": "python3 tests/e2e/run.py down",
+    "e2e:logs": "python3 tests/e2e/run.py logs",
+    "e2e:open": "python3 tests/e2e/run.py open",
+    "e2e:verify": "python3 tests/e2e/run.py verify",
     "predev": "node scripts/sync-version.js && node scripts/copy-fonts.js && node scripts/copy-vendor.js",
     "dev": "webpack --mode development && node scripts/deploy-ha.js",
     "convert:oww-onnx": "node scripts/convert-oww-tflite-to-onnx.mjs"

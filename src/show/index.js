@@ -74,7 +74,8 @@ export class ShowManager {
     }
     this._lastTriggerId = data.id;
 
-    if (this._active) {
+    const replacingShow = this._active;
+    if (replacingShow) {
       this._log.log(LOG, `Replacing active show #${this._currentShow?.id} with #${data.id}`);
       this._dismissNow({ skipPipelineRestart: true, skipDoneChime: true });
     }
@@ -86,7 +87,10 @@ export class ShowManager {
     const notifPlaying = this._session.announcement.playing
       || this._session.askQuestion.playing
       || this._session.startConversation.playing;
-    if (pipelineBusy || this._session.tts.isPlaying || notifPlaying) {
+    // Dismissing the old show can leave its persistent external pipeline in
+    // follow-up STT. That stale presentation state must not queue its explicit
+    // replacement forever; pipeline.start will revoke the old subscription.
+    if ((!replacingShow && (pipelineBusy || this._session.tts.isPlaying)) || notifPlaying) {
       this._log.log(
         LOG,
         `Show #${data.id} queued — busy (state=${cardState}, tts=${this._session.tts.isPlaying}, notif=${notifPlaying})`,

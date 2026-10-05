@@ -1,0 +1,5 @@
+{
+  "name": "voice-satellite",
+  "hooks": "adapter.py",
+  "requirements": ["mutagen==1.48.1"]
+}

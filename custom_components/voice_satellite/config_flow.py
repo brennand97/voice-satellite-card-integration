@@ -304,8 +304,9 @@ class VoiceSatelliteOptionsFlow(OptionsFlow):
                 not isinstance(entities, list)
                 or not all(isinstance(entity, str) and entity.startswith("media_player.") for entity in entities)
                 or action not in (MEDIA_GUARD_OFF, MEDIA_GUARD_DUCK, MEDIA_GUARD_PAUSE)
-                or isinstance(volume, bool) or not isinstance(volume, int) or not 1 <= volume <= 50
-                or isinstance(delay, bool) or not isinstance(delay, int) or not 0 <= delay <= 2000
+                # HA NumberSelector coerces whole-number values to floats.
+                or isinstance(volume, bool) or not isinstance(volume, (int, float)) or volume % 1 != 0 or not 1 <= volume <= 50
+                or isinstance(delay, bool) or not isinstance(delay, (int, float)) or delay % 1 != 0 or not 0 <= delay <= 2000
             ):
                 return self.async_show_form(step_id="media_guard", data_schema=self._media_guard_schema(), errors={"base": "invalid_media_guard"})
             return self.async_create_entry(title="", data={
@@ -313,8 +314,8 @@ class VoiceSatelliteOptionsFlow(OptionsFlow):
                 CONF_CONVERSATION_PROFILE_ID: self._profile_id,
                 CONF_MEDIA_GUARD_ENTITIES: list(dict.fromkeys(entities)),
                 CONF_MEDIA_GUARD_ACTION: action,
-                CONF_MEDIA_GUARD_VOLUME: volume,
-                CONF_MEDIA_GUARD_RESTORE_DELAY_MS: delay,
+                CONF_MEDIA_GUARD_VOLUME: int(volume),
+                CONF_MEDIA_GUARD_RESTORE_DELAY_MS: int(delay),
             })
         return self.async_show_form(step_id="media_guard", data_schema=self._media_guard_schema())
 

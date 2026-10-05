@@ -1,0 +1,6 @@
+{
+  "name": "voice-satellite-e2e",
+  "private": true,
+  "type": "module",
+  "dependencies": {"@homelab/ha-testbed": "file:../../../ha-integration-testbed/browser"}
+}

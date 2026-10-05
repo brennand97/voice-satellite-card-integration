@@ -71,7 +71,7 @@ class _DeviceTimerTool(llm.Tool):
 
 
 class StartTimer(_DeviceTimerTool):
-    name = "StartTimer"
+    name = "voice_satellite__StartTimer"
     description = "Start a named timer on the current Voice Satellite."
     parameters = vol.Schema(
         {
@@ -162,4 +162,4 @@ def async_get_tools(hass: HomeAssistant, llm_context: LLMContext, api_id: str) -
     del hass, llm_context
     if api_id != "assist":
         return None
-    return llm.LLMTools(tools=[StartTimer(), StopTimer(), RenameTimer(), ExtendTimer(), ShortenTimer(), GetTimerStatus()], prompt="Use Voice Satellite timer tools only for timers on the current Voice Satellite. Stop cancels a timer. Extend and shorten are relative changes, never absolute durations. Request a timer name whenever multiple timers could be ambiguous.")
+    return llm.LLMTools(tools=[StartTimer(), StopTimer(), RenameTimer(), ExtendTimer(), ShortenTimer(), GetTimerStatus()], prompt="Timers are persistent, important state on the current Voice Satellite. Read current status rather than relying on earlier dialogue. Only confirm mutations after tool success. Stop cancels the selected timer, not the conversation. Extend and shorten are relative changes, never absolute durations. Request a timer name whenever multiple timers could be ambiguous. Ending a conversation or stopping music does not cancel timers or suppress expiry alerts.")
