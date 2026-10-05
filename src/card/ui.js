@@ -1377,6 +1377,7 @@ export class UIManager {
     // Cache child references to avoid querySelector on every tick
     pill._vsTimeEl = pill.querySelector('.vs-timer-time');
     pill._vsProgressEl = pill.querySelector('.vs-timer-progress');
+    pill._vsNameEl = pill.querySelector('.vs-timer-name');
     pill._nameShown = includeName;
 
     if (onDoubleTap) {
@@ -1422,6 +1423,9 @@ export class UIManager {
         this._timerContainer.appendChild(t.el);
         this._timerPills.set(t.id, t.el);
       }
+      // A rename preserves the timer ID and pill. Refresh its label safely
+      // instead of leaving the creation-time name until the next rebuild.
+      if (t.el._vsNameEl) t.el._vsNameEl.textContent = truncateTimerName(t.name);
     }
   }
 

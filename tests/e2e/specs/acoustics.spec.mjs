@@ -12,7 +12,7 @@ if (!directory) {
     test.setTimeout(60_000);
     // launchOptions is worker-scoped: explicitly own a real browser per clip.
     const browser=await chromium.launch({args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required',`--use-file-for-fake-audio-capture=${sample.path}%noloop`]});
-    const context=await browser.newContext({baseURL:ha.run.url,permissions:['microphone'],viewport:{width:1280,height:800}});
+    const context=await browser.newContext({baseURL:ha.run.url,serviceWorkers:'block',permissions:['microphone'],viewport:{width:1280,height:800}});
     const page=await context.newPage();
     const stats=async () => {
       const response=await request.get(ha.run.transport_url+'/e2e/stats',{headers:{Authorization:`Bearer ${ha.run.credentials.transport_token}`}});

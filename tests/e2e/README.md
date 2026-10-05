@@ -24,6 +24,10 @@ npm run e2e:logs -- <run-id>
 npm run e2e:down -- <run-id>
 ```
 
+The direct shared `ha-testbed test` command only runs Playwright; it does **not** rebuild or copy changed frontend code. After product edits, explicitly run a build and stage the new assets into an owned scratch config, or use `prepare` followed by a fresh `up`. Prefer a fresh run for full acceptance after failed timer tests, whose live HA state may intentionally survive browser teardown.
+
+Browser contexts block service workers to prevent HA's initial `controllerchange` reload from destroying an in-flight scenario. This does not mock HA or application networking; offline cache/update behavior is outside this suite.
+
 `prepare` runs `npm ci` + **build only**, and builds the small transport E2E image. It never runs `npm run dev` / `deploy-ha.js`. Local candidate assets are copied into a new scratch config on every `up`; nothing is mounted into production. No code fixes are applied by the testbed.
 
 `up` succeeds when the generic HA runtime is ready even if a satellite config flow fails. It prints **Adapter setup FAILED**, saves the failure and preserves partial fixtures for debugging. The dedicated options-flow test fails on that condition. Other browser tests still attempt actual component behavior, capturing failures. This is deliberate: an unhealthy product is not an unhealthy testbed, and a failed configuration is not silently bypassed with `.storage` edits.
