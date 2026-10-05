@@ -572,7 +572,7 @@ export class TtsManager {
     playChimeSound(this._card, pattern, this._log);
     setTimeout(() => {
       this._card.mediaPlayer.notifyAudioEnd('chime');
-    }, (pattern.duration || 0.3) * 1000);
+    }, (getChimeDuration(pattern, this._card) || 0.3) * 1000);
 
     // Only end-of-interaction chimes (done, error) schedule restore.
     // The wake chime is the START of the interaction - scheduling a
@@ -585,7 +585,7 @@ export class TtsManager {
         && this._resumeSnapshot
         && this._card.ttsTarget
         && this._isNormalPlaybackMode()) {
-      this._scheduleRestore(getChimeDuration(pattern));
+      this._scheduleRestore(getChimeDuration(pattern, this._card));
     }
   }
 

@@ -65,6 +65,7 @@ On Android tablets, [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellit
 - **Screen off, app in background - still listening.** Native detection does not depend on the page being visible. With background listening enabled in the app, the wake word works even while another app is in the foreground, and the kiosk returns to the dashboard on a trigger.
 - **A fraction of the cost.** Native CPU inference runs the pipeline many times faster than realtime with no GPU needed, keeping the dashboard perfectly smooth. Even low-end hardware that struggles with browser detection runs comfortably.
 - **Nothing is clipped.** The app holds the microphone permanently and streams audio to Voice Satellite with a pre-roll on every wake, so the first words of a command are never lost to microphone re-acquisition.
+- **The intercom comes first.** With wake word detection set to Home Assistant, Voice Satellite holds the microphone to stream it. A call on the app's intercom asks for it, Voice Satellite lets go for the call and picks its stream back up when the call ends.
 - **Plain HTTP works.** Kiosk Satellite lifts the browser's HTTPS requirement: its secure context proxy makes the microphone and the full voice pipeline available even when Home Assistant is served over plain HTTP.
 
 If the app cannot run your selected engine natively, Voice Satellite silently keeps detection in the browser - there is no failure mode to manage. Fully Kiosk and Kiosker Pro setups are unaffected: detection runs in the browser there, exactly as described above.

@@ -10,9 +10,9 @@
 
 import { State, INTERACTING_STATES, BlurReason, Timing } from '../constants.js';
 import { subscribeSatelliteEvents, teardownSatelliteSubscription } from '../shared/satellite-subscription.js';
-import { dispatchSatelliteEvent } from '../shared/satellite-notification.js';
+import { dispatchSatelliteEvent, playQueuedNotifications, releaseNotificationInteraction } from '../shared/satellite-notification.js';
 import { getSwitchState, getSelectState, getNumberState, getSatelliteAttr } from '../shared/satellite-state.js';
-import { setChimeDurationOverrides, getChimeDuration, CHIME_WAKE } from '../audio/chime.js';
+import { setChimeDurationOverrides, refreshNativeChimeDurations, getChimeDuration, CHIME_WAKE } from '../audio/chime.js';
 import { setupNativeWakeHandoff, teardownNativeWakeHandoff, nativeEngineFor } from '../wake-word/native-handoff.js';
 import * as kiosk from '../kiosk/index.js';
 
@@ -147,6 +147,7 @@ export function setState(session, newState) {
   } else if (wasInteracting && !session.tts?.isPlaying) {
     session.screensaver.stopExternalKeepalive();
     kiosk.releaseScreensaver('voice');
+    releaseNotificationInteraction(session.startConversation);
   }
 
   // Swap mic DSP config between wake-word and STT modes.  WAKE_WORD_DETECTED
@@ -201,6 +202,7 @@ export function setState(session, newState) {
  * @param {import('./index.js').VoiceSatelliteSession} session
  */
 export async function handleStartClick(session) {
+  session._userStopped = false;
   await session.audio.ensureAudioContextForGesture();
   if (session._hasStarted && getWakeWordMode(session) === WAKE_MODE_DISABLED) {
     await triggerWake(session);
@@ -268,6 +270,9 @@ async function _startListeningBody(session) {
     // selected engine, without importing native-handoff.js (which imports it).
     session._nativeEngineFor = () => nativeEngineFor(session);
 
+    // Read local sound lengths before the native wake engine can trigger.
+    await refreshNativeChimeDurations();
+    if (session._userStopped) return 'aborted';
     await setupNativeWakeHandoff(session).catch((e) => {
       session.logger.error('wake-word', `Native wake handoff failed: ${e.message || e}`);
     });
@@ -292,6 +297,12 @@ async function _startListeningBody(session) {
     if (muted) {
       session.logger.log('session', 'Muted - mic and wake word suspended at startup');
       session.showMutedToast();
+    }
+    // Kiosk Satellite's intercom holds the mic for a call: no capture until
+    // the call ends, when _setIntercomHold runs this start again.
+    const intercomHeld = session._intercomHold === true;
+    if (intercomHeld && !muted) {
+      session.logger.log('session', 'Intercom call live - the mic stays with the app until it ends');
     }
 
     // Disabled: don't acquire the mic and don't start the pipeline. The
@@ -327,9 +338,10 @@ async function _startListeningBody(session) {
       return;
     }
 
-    if (muted) {
-      // Muted: skip mic acquisition and all inference. Stay idle; the
-      // session is otherwise fully set up below and resumes on unmute.
+    if (muted || intercomHeld) {
+      // Muted, or the app's intercom has the mic: skip mic acquisition and
+      // all inference. Stay idle; the session is otherwise fully set up
+      // below and resumes on unmute or when the call ends.
       setState(session, State.IDLE);
     } else {
       setState(session, State.CONNECTING);
@@ -349,7 +361,8 @@ async function _startListeningBody(session) {
         // so all start paths benefit, not just this one.  No-op here.
         await ww.start();
       } else {
-        await session.pipeline.start();
+        const result = await session.pipeline.start();
+        if (result === 'aborted' || session._userStopped) return 'aborted';
         if (mode === WAKE_MODE_HA && stopWordOn) {
           // Load runtime in standby. Failure here is non-fatal - stop-word
           // interruption simply won't be available, but server-side wake
@@ -532,7 +545,7 @@ export function performFollowupHandoff(session, onReady, opts = {}) {
     // Mirror the wake-word path: play the chime, then wait its real
     // duration plus the same speaker drain margin so the chime can't
     // bleed into the new STT capture.
-    const chimeMs = getChimeDuration(CHIME_WAKE) * 1000;
+    const chimeMs = getChimeDuration(CHIME_WAKE, session) * 1000;
     const chimeWait = chimeMs + 250;
     session.logger.log(
       'pipeline',
@@ -634,15 +647,13 @@ export function onTTSComplete(session, playbackFailed) {
     // Same for the kiosk companion's screensaver: this is the end-of-turn that
     // the leave-interacting branch deferred while TTS was still speaking.
     kiosk.releaseScreensaver('voice');
+    releaseNotificationInteraction(session.startConversation);
 
     // Reset screensaver idle timer after interaction completes
     session.screensaver.notifyActivity();
 
     // Play any queued notifications
-    session.announcement.playQueued();
-    session.askQuestion.playQueued();
-    session.startConversation.playQueued();
-    session.show.playQueued();
+    playQueuedNotifications(session);
   };
 
   // Mini-card hook: keep the text visible briefly while a compact marquee is
@@ -834,6 +845,10 @@ export async function triggerWake(session, opts = {}) {
   // the on-demand mic the wake service would otherwise bring up.
   if (getSwitchState(session.hass, session.config.satellite_entity, 'mute') === true) {
     session.logger.log('wake', 'Ignored - satellite is muted');
+    return;
+  }
+  if (session._intercomHold === true) {
+    session.logger.log('wake', 'Ignored - an intercom call holds the mic');
     return;
   }
 

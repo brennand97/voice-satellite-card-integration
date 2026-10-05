@@ -226,6 +226,33 @@ export function dequeueNotification(mgr) {
 
 
 /**
+ * Whether any notification manager is holding a queued event. Events are
+ * queued on the manager that owns their type, so a flow that ends on one
+ * manager (an ask_question answer, an announcement linger) must look at
+ * its siblings too - an announce that arrived during the question's STT
+ * phase sits on the announcement manager, not the ask-question one.
+ * @param {object} card
+ * @returns {boolean}
+ */
+export function hasQueuedNotification(card) {
+  return !!(card.announcement?.queued || card.askQuestion?.queued
+    || card.startConversation?.queued || card.show?.queued);
+}
+
+/**
+ * Drain every manager's queue. Each playQueued is a no-op when nothing is
+ * waiting there, so this is safe to call from any end-of-flow site.
+ * @param {object} card
+ */
+export function playQueuedNotifications(card) {
+  card.announcement?.playQueued();
+  card.askQuestion?.playQueued();
+  card.startConversation?.playQueued();
+  card.show?.playQueued();
+}
+
+
+/**
  * Full playback: blur -> bar -> preannounce -> main media -> onComplete.
  * DOM delegated to UIManager, audio to chime/media-playback.
  *
@@ -255,10 +282,9 @@ export function playNotification(mgr, ann, onComplete, logPrefix) {
   // make sure we are in front — otherwise the announcement / question plays to
   // a dimmed, backgrounded tablet. Released in clearNotificationUI.
   kiosk.bringToFront();
-  kiosk.stopScreensaver(
-    ann.ask_question ? 'ask_question'
-      : ann.start_conversation ? 'start_conversation' : 'announcement',
-  );
+  mgr._kioskInteractionReason = ann.ask_question ? 'ask_question'
+    : ann.start_conversation ? 'start_conversation' : 'announcement';
+  kiosk.stopScreensaver(mgr._kioskInteractionReason);
 
   // Only center on screen for passive announcements (not ask_question or start_conversation)
   const isPassive = !ann.ask_question && !ann.start_conversation;
@@ -335,7 +361,14 @@ export function clearNotificationUI(mgr) {
 
   // Let the kiosk screensaver arm again now the interaction is over (balances
   // the stopScreensaver in playNotification).
-  kiosk.releaseScreensaver('announcement');
+  releaseNotificationInteraction(mgr);
+}
+
+/** Release only the kiosk interaction started by this notification. */
+export function releaseNotificationInteraction(mgr) {
+  if (!mgr?._kioskInteractionReason) return;
+  kiosk.releaseScreensaver(mgr._kioskInteractionReason);
+  mgr._kioskInteractionReason = null;
 }
 
 
@@ -586,6 +619,7 @@ export function initNotificationState(mgr) {
   mgr._remotePlayback = null;
   mgr._remoteTimeout = null;
   mgr._stopWordTimer = null;
+  mgr._kioskInteractionReason = null;
 }
 
 

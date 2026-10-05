@@ -16,7 +16,7 @@ Each satellite registers itself with Home Assistant's timer manager when it load
 
 What you see on the satellite:
 
-1. **Countdown pill** appears at the top of the overlay as soon as the timer is created. The pill shows the remaining time and animates a progress bar. Multiple timers stack independently.
+1. **Countdown pill** appears at the top of the overlay as soon as the timer is created. The pill shows the remaining time and animates a progress bar. Pausing a timer freezes its countdown until it is resumed. Multiple timers stack independently.
 2. **Alert** fires when the timer reaches zero: a centered alert pill flashes, the alert chime loops (silent while **Mute timers** is on), and the timer name (if any) is shown below the pill in the skin's assistant text style. The wake-word stop interrupter is enabled while the alert is active so you can say the stop keyword to dismiss it (`"stop"` on microWakeWord and openWakeWord, `"ok stop"` on vsWakeWord - see [Stop Word Interruption](wake-word.md#stop-word-interruption)).
 3. **Optional spoken alert phrase** can be enabled from the side panel. When enabled, the alert repeats as `chime -> chime -> phrase -> short pause` until dismissed. The next chime pair starts about 500 ms after the phrase ends. The phrase is synthesized with the same Assist pipeline that created the timer, so dual-pipeline setups keep the expected language and voice.
 4. **Cleanup** happens only when dismissed (double-tap or the stop keyword). Timer alerts do not auto-dismiss; the alert chime keeps looping until you dismiss it.
@@ -54,7 +54,7 @@ data:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | yes | Label saved on the timer. Used by voice cancellation ("cancel the stir the sauce timer") and by automations reading `active_timers`. Hidden from the on-screen pill by design, shown below the alert when the timer fires |
-| `hours` | no | Hours portion of the duration (0-24) |
+| `hours` | no | Hours portion of the duration (0-168) |
 | `minutes` | no | Minutes portion (0-59) |
 | `seconds` | no | Seconds portion (0-59) |
 
@@ -98,10 +98,12 @@ The satellite entity exposes timer state for templates and triggers:
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `active_timers` | list | Active timer objects, each with `id`, `name`, `total_seconds`, `started_at`, and `pipeline_id` |
+| `active_timers` | list | Running and paused timer objects, each with `id`, `name`, `total_seconds`, `started_at`, `is_active`, `start_hours`, `start_minutes`, `start_seconds`, and `pipeline_id` |
 | `last_timer_event` | string | Last event type: `started`, `updated`, `cancelled`, or `finished` |
 
-Example template, true when the kitchen tablet has at least one running timer:
+Each timer's `is_active` is `true` while running and `false` while paused. For a running timer, calculate remaining seconds as `max(0, total_seconds - (now - started_at))`, where `now` and `started_at` are Unix timestamps in seconds. For a paused timer, use `total_seconds` directly without subtracting elapsed time. Pause, resume, and duration changes all produce an `updated` event and refresh `total_seconds` and `started_at`; the `start_*` fields retain the original requested duration. Consumers supporting older integration versions can treat a missing `is_active` as `true`.
+
+Example template, true when the kitchen tablet has at least one running or paused timer:
 
 ```jinja
 {{ state_attr('assist_satellite.kitchen_tablet', 'active_timers') | length > 0 }}

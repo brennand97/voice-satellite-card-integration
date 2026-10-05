@@ -5,6 +5,8 @@
  * removals, and finished alerts.
  */
 
+import { getSwitchState } from '../shared/satellite-state.js';
+
 let _lastTimerJson = '';
 
 /**
@@ -19,6 +21,11 @@ export function resetTimerDedup() {
  * @param {object} attrs - Entity attributes from state_changed event
  */
 export function processStateChange(mgr, attrs) {
+  if (mgr.alertActive && mgr.nativePills?.alertTimers.length) {
+    mgr.nativePills.showAlert(mgr.nativePills.alertTimers,
+      typeof attrs.mute_timers === 'boolean' ? attrs.mute_timers
+        : getSwitchState(mgr.card.hass, mgr.card.config?.satellite_entity, 'mute_timers') === true);
+  }
   let rawTimers = attrs.active_timers;
   const lastEvent = attrs.last_timer_event;
 
@@ -74,16 +81,15 @@ export function processStateChange(mgr, attrs) {
           mgr.removePill(id);
         }
         mgr.timers = mgr.timers.filter((t) => !removedIds.includes(t.id));
-        if (!mgr.alertActive) mgr.showAlert(removedNames);
+        mgr.nativePills?.sync(mgr.card.config?.hide_timer_pills ? [] : mgr.timers);
+        mgr.showAlert(removedNames);
       }, maxRemainingMs);
     } else {
       mgr.log.log('timer', `Timer(s) finished: ${removedIds.join(', ')}`);
       for (const id of removedIds) {
         mgr.removePill(id);
       }
-      if (!mgr.alertActive) {
-        mgr.showAlert(removedNames);
-      }
+      mgr.showAlert(removedNames);
     }
   } else {
     // Remove pills for cancelled/removed timers

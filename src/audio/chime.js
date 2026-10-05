@@ -19,7 +19,7 @@
 
 import { buildMediaUrl, buildRemoteMediaUrl } from './media-playback.js';
 import { getSelectState } from '../shared/satellite-state.js';
-import { supportsNativeSound, playNativeSound, prefetchNativeSound } from '../kiosk/index.js';
+import { supportsNativeSound, playNativeSound, playNativeSoundTracked, prefetchNativeSound } from '../kiosk/index.js';
 
 const SOUNDS_BASE = '/voice_satellite/sounds';
 
@@ -110,6 +110,27 @@ export function preloadChimes(session) {
  */
 const _durationOverrides = new Map();
 
+let _nativeDurations = {};
+let _nativeDurationRevision = 0;
+
+export async function refreshNativeChimeDurations() {
+  if (typeof window === 'undefined') return;
+  const api = window.kioskSatellite;
+  if (api?.platform !== 'kiosksatellite' || !api.getVoiceChimeDurations) return;
+  const revision = ++_nativeDurationRevision;
+  try {
+    const durations = await api.getVoiceChimeDurations();
+    if (revision === _nativeDurationRevision && durations && typeof durations === 'object') _nativeDurations = durations;
+  } catch (_) { /* Older kiosks keep server durations. */ }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('kiosksatellite:voice-chimes-changed', (event) => {
+    ++_nativeDurationRevision;
+    _nativeDurations = event.detail || {};
+  });
+}
+
 export function setChimeDurationOverrides(map) {
   _durationOverrides.clear();
   if (!map) return;
@@ -128,9 +149,11 @@ export function setChimeDurationOverrides(map) {
  * @param {{ url: string, duration: number }} chime
  * @returns {number} duration in seconds
  */
-export function getChimeDuration(chime) {
+export function getChimeDuration(chime, session) {
   if (!chime || !chime.url) return 0;
   const filename = chime.url.split('/').pop();
+  const native = _nativeDurations[filename];
+  if (!session?.ttsTarget && supportsNativeSound() && Number.isFinite(native) && native > 0) return native;
   const override = _durationOverrides.get(filename);
   if (override !== undefined) return override;
   return chime.duration ?? 0;
@@ -208,4 +231,40 @@ export function playChime(card, chime, log) {
   } catch (e) {
     log?.error('chime', `Chime error: ${e}`);
   }
+}
+
+/** Play one timer chime with completion and cancellation. */
+export async function playChimeTracked(session, chime, log) {
+  if (session.ttsTarget) {
+    playChime(session, chime, log);
+    let resolve;
+    const done = new Promise((r) => { resolve = r; });
+    const timer = setTimeout(resolve, getChimeDuration(chime, session) * 1000);
+    return { done, stop() {
+      clearTimeout(timer);
+      resolve();
+      session.hass?.callService('media_player', 'media_stop', {
+        entity_id: session.ttsTarget,
+      }).catch(() => {});
+    } };
+  }
+  if (supportsNativeSound()) {
+    const native = await playNativeSoundTracked(buildMediaUrl(chime.url), session.mediaPlayer.volume, { cache: true });
+    if (native) return native;
+  }
+  const audio = getCachedAudio(chime.url);
+  let finish;
+  const done = new Promise((resolve) => {
+    finish = () => {
+      audio.removeEventListener('ended', finish);
+      audio.removeEventListener('error', finish);
+      resolve();
+    };
+  });
+  audio.addEventListener('ended', finish);
+  audio.addEventListener('error', finish);
+  audio.currentTime = 0;
+  audio.volume = session.mediaPlayer.volume;
+  audio.play().catch((error) => { log?.error('chime', `${error}`); finish(); });
+  return { done, stop() { audio.pause(); finish(); } };
 }

@@ -176,6 +176,15 @@ Lens Flares uses a single token set (no separate light variant). Flare colors ar
 
 ## Custom Sounds
 
+For local playback in Kiosk Satellite versions with **Voice Satellite > Chimes**,
+select or upload sounds in that settings group on the device or in Remote Admin.
+It includes wake, done, error, timer and announcement sounds with previews.
+Only the default sounds are bundled. Custom files stay on each kiosk and do not
+need a Home Assistant restart. Long timer sounds finish before repeating.
+
+The Home Assistant file replacements below apply to browser playback and remote
+speakers. They do not replace Kiosk Satellite's locally selected sounds.
+
 Voice Satellite's built-in sound files live in `custom_components/voice_satellite/sounds/` as MP3s:
 
 - `wake.mp3`

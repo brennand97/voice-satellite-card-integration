@@ -1,14 +1,15 @@
 /** Timer UI bridge: pills, ticking, and finished-alert lifecycle. */
 
-import { playChime, CHIME_ALERT, getChimeDuration } from '../audio/chime.js';
+import { playChimeTracked, CHIME_ALERT } from '../audio/chime.js';
 import { buildMediaUrl, buildRemoteMediaUrl, playMediaUrl } from '../audio/media-playback.js';
 import { playRemote, stopRemote } from '../tts/comms.js';
 import { getSelectState, getSwitchState } from '../shared/satellite-state.js';
+import { promoteToTopLayer } from '../shared/top-layer.js';
 import { BlurReason, DEFAULT_CONFIG, Timing } from '../constants.js';
 import * as kiosk from '../kiosk/index.js';
 
-let _alertLoopTimer = null;
 let _alertLoopToken = null;
+let _alertSound = null;
 let _timerTtsPromise = null;
 let _timerTtsAudio = null;
 let _timerTtsNative = null;
@@ -21,6 +22,7 @@ let _timerTtsRemoteActive = false;
 let _screensaverKeepaliveTimer = null;
 const SCREENSAVER_KEEPALIVE_MS = 4000;
 const TIMER_NAME_TOKEN = '%%TIMER_NAME%%';
+const TIMER_CONTAINER_ID = 'voice-satellite-timers';
 const TIMER_TTS_SYNTH_TIMEOUT_MS = 15000;
 const TIMER_TTS_REMOTE_FALLBACK_MS = 2500;
 const TIMER_TTS_REMOTE_PAD_MS = 750;
@@ -28,6 +30,7 @@ const TIMER_TTS_TO_CHIME_DELAY_MS = 500;
 
 /** @param {import('./index.js').TimerManager} mgr */
 export function removeContainer(mgr) {
+  mgr.nativePills?.sync([]);
   mgr.card.ui.removeTimerContainer();
 }
 
@@ -44,6 +47,10 @@ export function removePill(mgr, timerId) {
 
 /** @param {import('./index.js').TimerManager} mgr */
 export function syncDOM(mgr) {
+  if (mgr.nativePills?.sync(mgr.card.config?.hide_timer_pills ? [] : mgr.timers)) {
+    mgr.card.ui.removeTimerContainer();
+    return;
+  }
   if (mgr.card.config?.hide_timer_pills) {
     // Pills suppressed via the side-panel toggle. Tear down anything that
     // may already be on screen so flipping the flag mid-run hides existing
@@ -63,7 +70,10 @@ export function tick(mgr) {
   const now = Date.now();
 
   for (const t of mgr.timers) {
-    const elapsed = Math.max(0, Math.floor((now - t.startedAt) / 1000));
+    // While paused, totalSeconds is the remaining duration at the pause.
+    const elapsed = t.isActive === false
+      ? 0
+      : Math.max(0, Math.floor((now - t.startedAt) / 1000));
     const left = Math.max(0, t.totalSeconds - elapsed);
     t.secondsLeft = left;
   }
@@ -74,7 +84,7 @@ export function tick(mgr) {
     mgr.card.ui.removeTimerContainer();
     return;
   }
-  mgr.card.ui.tickTimerPills(mgr.timers);
+  if (!mgr.nativePills?.active) mgr.card.ui.tickTimerPills(mgr.timers);
 }
 
 /**
@@ -82,8 +92,13 @@ export function tick(mgr) {
  * @param {string[]} [names] - Names of timers that just finished, shown as
  *   the alert label.
  */
-export function showAlert(mgr, names) {
+export async function showAlert(mgr, names) {
   if (mgr.alertActive) {
+    if (mgr.nativePills?.api) {
+      const all = new Map([...mgr.nativePills.alertTimers, ...(mgr._lastFinishedTimers || [])]
+        .map((timer) => [timer.id, timer]));
+      await mgr.nativePills.showAlert([...all.values()], timersMuted(mgr));
+    }
     mgr.log.log('timer', 'Alert already active, skipping duplicate');
     return;
   }
@@ -108,6 +123,11 @@ export function showAlert(mgr, names) {
   // stop word is disabled) on its own.
   mgr.card.wakeWord?.enableStopModel(false);
 
+  const finished = mgr._lastFinishedTimers?.length
+    ? mgr._lastFinishedTimers : [{ id: 'timer-alert', name: names?.join(', ') || '' }];
+  if (await mgr.nativePills?.showAlert(finished, timersMuted(mgr))) return;
+  if (!mgr.alertActive) return;
+
   mgr.card.ui.showBlurOverlay(BlurReason.TIMER);
 
   const labelNames = mgr.card.config?.hide_timer_name_on_alert ? [] : names;
@@ -122,6 +142,7 @@ export function showAlert(mgr, names) {
 
 /** @param {import('./index.js').TimerManager} mgr */
 export function clearAlert(mgr) {
+  mgr.nativePills?.clearAlert();
   if (!mgr.alertActive) return;
   mgr.alertActive = false;
 
@@ -158,21 +179,34 @@ export function clearAlert(mgr) {
  * @param {import('./index.js').TimerManager} mgr
  */
 function timersMuted(mgr) {
+  if (typeof mgr._attrs?.mute_timers === 'boolean') return mgr._attrs.mute_timers;
   return getSwitchState(
     mgr.card.hass, mgr.card.config?.satellite_entity, 'mute_timers',
   ) === true;
 }
 
 /** @param {import('./index.js').TimerManager} mgr */
-function playAlertChime(mgr) {
+async function playAlertChime(mgr, token) {
   if (timersMuted(mgr)) return;
-
-  // In normal_playback mode, snapshot the remote before the chime fires
-  // (chime.js writes to the remote via play_media with announce=false,
-  // wiping any user music). Idempotent across loop iterations.
   mgr.card.tts?.ensureRemoteSnapshot();
-  playChime(mgr.card, CHIME_ALERT, mgr.log);
+  let sound;
+  try { sound = await playChimeTracked(mgr.card, CHIME_ALERT, mgr.log); }
+  catch (error) {
+    mgr.log.error('timer', `Alert playback failed: ${error?.message || error}`);
+    return;
+  }
+  if (!mgr.alertActive || _alertLoopToken !== token || timersMuted(mgr)) {
+    sound.stop();
+    return;
+  }
+  _alertSound = sound;
+  const muteWatch = setInterval(() => { if (timersMuted(mgr)) sound.stop(); }, 100);
   mgr.log.log('timer', 'Alert chime played');
+  try { await sound.done; }
+  finally {
+    clearInterval(muteWatch);
+    if (_alertSound === sound) _alertSound = null;
+  }
 }
 
 /** @param {import('./index.js').TimerManager} mgr */
@@ -180,17 +214,12 @@ function startAlertLoop(mgr, names) {
   stopAlertLoop();
 
   const ttsText = buildTimerTtsText(mgr, names);
-  if (!ttsText) {
-    playAlertChime(mgr);
-    _alertLoopTimer = setInterval(() => playAlertChime(mgr), Timing.TIMER_CHIME_INTERVAL);
-    return;
-  }
 
   const pipelineId = getTimerAlertPipelineId(mgr, names);
-  _timerTtsPromise = synthesizeTimerTts(mgr, ttsText, pipelineId).catch((e) => {
+  _timerTtsPromise = ttsText ? synthesizeTimerTts(mgr, ttsText, pipelineId).catch((e) => {
     mgr.log.error('timer', `Timer TTS synthesis failed: ${e?.message || e}`);
     return null;
-  });
+  }) : null;
 
   const token = Symbol('timer-alert-loop');
   _alertLoopToken = token;
@@ -198,12 +227,14 @@ function startAlertLoop(mgr, names) {
   const run = async () => {
     if (!mgr.alertActive || _alertLoopToken !== token) return;
 
-    playAlertChime(mgr);
-    await waitWhileAlertActive(mgr, token, Timing.TIMER_CHIME_INTERVAL);
+    const started = Date.now();
+    await playAlertChime(mgr, token);
+    await waitWhileAlertActive(mgr, token, Math.max(250, Timing.TIMER_CHIME_INTERVAL - (Date.now() - started)));
     if (!mgr.alertActive || _alertLoopToken !== token) return;
 
-    playAlertChime(mgr);
-    await waitWhileAlertActive(mgr, token, getChimeDuration(CHIME_ALERT) * 1000 + 250);
+    if (!ttsText) { run(); return; }
+    await playAlertChime(mgr, token);
+    await waitWhileAlertActive(mgr, token, 250);
 
     if (mgr.alertActive && _alertLoopToken === token && _timerTtsPromise) {
       const media = await _timerTtsPromise;
@@ -222,12 +253,8 @@ function startAlertLoop(mgr, names) {
 function stopAlertLoop(mgr) {
   _alertLoopToken = null;
   _timerTtsPromise = null;
-
-  if (_alertLoopTimer) {
-    clearTimeout(_alertLoopTimer);
-    clearInterval(_alertLoopTimer);
-    _alertLoopTimer = null;
-  }
+  _alertSound?.stop();
+  _alertSound = null;
 
   if (_timerTtsAudio) {
     try { _timerTtsAudio.pause(); } catch (_) { /* ignore */ }
@@ -517,4 +544,14 @@ function pingScreensaver(mgr) {
   // Suppress the kiosk browser's own screensaver (FK one-shot stop /
   // Kiosker pause) so it can't cover the timer-alert UI.
   kiosk.stopScreensaver('timer');
+}
+
+/**
+ * Re-front the timer pill container in the browser top layer so pills
+ * paint above other promoted overlays. The screensaver calls this right
+ * after promoting itself (#181). No-op when no container is mounted or
+ * the Popover API is unavailable.
+ */
+export function bringTimerHostToFront() {
+  promoteToTopLayer(document.getElementById(TIMER_CONTAINER_ID));
 }

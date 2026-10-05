@@ -11,6 +11,9 @@ import {
   dequeueNotification,
   playNotification,
   clearNotificationUI,
+  releaseNotificationInteraction,
+  hasQueuedNotification,
+  playQueuedNotifications,
 } from '../shared/satellite-notification.js';
 import { sendAck } from '../shared/notification-comms.js';
 import { BlurReason, Timing } from '../constants.js';
@@ -63,6 +66,7 @@ export class AskQuestionManager {
     }
 
     this._card.ui.hideBlurOverlay(BlurReason.ANNOUNCEMENT);
+    releaseNotificationInteraction(this);
     this.playing = false;
   }
 
@@ -167,14 +171,20 @@ export class AskQuestionManager {
       this._card.chat.clear();
       this._card.ui.hideBlurOverlay(BlurReason.PIPELINE);
       this.playing = false;
-      if (!this.queued) {
+      if (!hasQueuedNotification(this._card)) {
         // Resume any media playback paused at the start of the question.
-        // Skipped when another notification is queued — its own interrupt()
+        // Skipped when another notification is queued - its own interrupt()
         // will keep playback paused.
         this._card.mediaPlayer.resumeAfterInterrupt();
         pipeline.restart(0);
       } else {
-        this.playQueued();
+        // Drain every manager, not just this one. An announce fired right
+        // after the answer (the common "ask, then confirm" script shape)
+        // arrives while the state is still STT and is queued on the
+        // announcement manager; the normal run-end drain is skipped for
+        // ask_question (this cleanup owns it), so it must happen here or
+        // the announcement waits for an unrelated future turn (#170).
+        playQueuedNotifications(this._card);
       }
     };
 

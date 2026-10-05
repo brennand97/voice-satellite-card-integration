@@ -13,6 +13,7 @@
  * 4. Alert dismissed by double-tap or stop word
  */
 
+import { NativeTimerPills } from './native-pills.js';
 import { subscribeToEntity, unsubscribeEntity } from '../shared/entity-subscription.js';
 import { processStateChange, resetTimerDedup } from './events.js';
 import { sendCancelTimer } from './comms.js';
@@ -44,6 +45,7 @@ export class TimerManager {
     this._alertActive = false;
     this._alertEl = null;
     this._lastFinishedTimers = [];
+    this.nativePills = new NativeTimerPills(this);
   }
   update() {
     if (this._subscribed) return;
@@ -73,6 +75,7 @@ export class TimerManager {
   }
 
   destroy() {
+    this.nativePills.destroy();
     this.stopTick();
     if (this._removeContainerTimeout) {
       clearTimeout(this._removeContainerTimeout);
@@ -119,6 +122,8 @@ export class TimerManager {
 
       // Use server-side started_at (epoch seconds) to compute correct start
       const serverStartedAt = raw.started_at ? raw.started_at * 1000 : now;
+      // Older integration versions omit is_active; keep those timers running.
+      const isActive = raw.is_active !== false;
 
       if (existing) {
         // Names may change without a duration change (for example RenameTimer).
@@ -129,12 +134,18 @@ export class TimerManager {
         // leave the remaining time unchanged (e.g. add then remove the
         // same amount, or pause/unpause).
         if (
-          existing.totalSeconds !== raw.total_seconds
+          existing.name !== (raw.name || '')
+          || existing.totalSeconds !== raw.total_seconds
           || existing.startedAt !== serverStartedAt
+          || existing.isActive !== isActive
         ) {
           existing.totalSeconds = raw.total_seconds;
+          existing.name = raw.name || '';
           existing.startedAt = serverStartedAt;
-          const elapsed = Math.max(0, Math.floor((now - serverStartedAt) / 1000));
+          existing.isActive = isActive;
+          const elapsed = isActive
+            ? Math.max(0, Math.floor((now - serverStartedAt) / 1000))
+            : 0;
           existing.secondsLeft = Math.max(0, raw.total_seconds - elapsed);
           existing.startHours = raw.start_hours || 0;
           existing.startMinutes = raw.start_minutes || 0;
@@ -147,9 +158,11 @@ export class TimerManager {
         // defer the visual countdown start to now so the pill doesn't appear
         // already partially elapsed. Short timers would otherwise finish
         // server-side before the user even sees the pill.
-        const pipelineActive = INTERACTING_STATES.includes(this._card.currentState);
+        const pipelineActive = isActive && INTERACTING_STATES.includes(this._card.currentState);
         const effectiveStart = pipelineActive ? now : serverStartedAt;
-        const elapsed = Math.max(0, Math.floor((now - effectiveStart) / 1000));
+        const elapsed = isActive
+          ? Math.max(0, Math.floor((now - effectiveStart) / 1000))
+          : 0;
         if (pipelineActive) {
           this._log.log('timer', `Deferring timer start (pipeline active): ${raw.id}`);
         }
@@ -159,6 +172,7 @@ export class TimerManager {
           totalSeconds: raw.total_seconds,
           secondsLeft: Math.max(0, raw.total_seconds - elapsed),
           startedAt: effectiveStart,
+          isActive,
           startHours: raw.start_hours || 0,
           startMinutes: raw.start_minutes || 0,
           startSeconds: raw.start_seconds || 0,

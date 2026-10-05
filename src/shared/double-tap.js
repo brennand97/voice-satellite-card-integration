@@ -9,6 +9,7 @@ import { State, INTERACTING_STATES, BlurReason, Timing } from '../constants.js';
 import { clearNotificationUI } from '../shared/satellite-notification.js';
 import { sendAck } from '../shared/notification-comms.js';
 import { getSwitchState } from '../shared/satellite-state.js';
+import * as kiosk from '../kiosk/index.js';
 
 /**
  * Attach a double-tap/double-click handler to an element.
@@ -155,21 +156,32 @@ export class DoubleTapHandler {
       return;
     }
 
-    this._log.log('ui', 'Cancel detected - cancelling interaction');
-
     // Cancel image linger timeout if active
     if (this._card._imageLingerTimeout) {
       clearTimeout(this._card._imageLingerTimeout);
       this._card._imageLingerTimeout = null;
     }
-    // The media panel arms the stop word for as long as it shows.
-    // Releasing it here keeps a manual dismissal in step with the
-    // timeout path, which does the same in its cleanup.
+    // A media panel lingering after its response: the turn is already over
+    // (state IDLE, TTS done) and its end-of-turn cleanup was parked for the
+    // panel's lifetime. Run that cleanup, exactly as the stop word and the
+    // linger timer do, so everything it owns is released: the stop word,
+    // paused media, the external screensaver keepalive and the kiosk
+    // companion's "interaction running" hold. Tearing the panel down by
+    // hand here used to skip that release, and Kiosk Satellite then kept
+    // refusing its screensaver and hiding its player until the page
+    // reloaded.
     if (this._card._mediaLingerDismiss) {
+      this._log.log('ui', 'Cancel detected - dismissing media panel');
+      const dismiss = this._card._mediaLingerDismiss;
       this._card._mediaLingerDismiss = null;
-      this._card.wakeWord?.disableStopModel();
-      this._card.mediaPlayer?.refreshStopWord();
+      dismiss();
+      if (getSwitchState(this._card.hass, this._card.config.satellite_entity, 'wake_sound') !== false) {
+        this._card.tts.playChime('done');
+      }
+      return;
     }
+
+    this._log.log('ui', 'Cancel detected - cancelling interaction');
 
     this._card.tts.stop();
 
@@ -181,6 +193,12 @@ export class DoubleTapHandler {
     this._card.chat.clear();
     this._card.ui.hideBlurOverlay(BlurReason.PIPELINE);
     this._card.ui.updateForState(State.IDLE, this._card.pipeline.serviceUnavailable, false);
+    // setState only releases the screensaver holds when it leaves an
+    // interacting state. A cancel that lands after the state already went
+    // idle (TTS still speaking, a lingering response) would keep them, so
+    // release explicitly; both calls are no-ops when nothing is held.
+    this._card.screensaver.stopExternalKeepalive();
+    kiosk.releaseScreensaver('voice');
 
     if (getSwitchState(this._card.hass, this._card.config.satellite_entity, 'wake_sound') !== false) {
       this._card.tts.playChime('done');

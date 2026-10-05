@@ -443,6 +443,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     websocket_api.async_register_command(hass, ws_subscribe_satellite_events)
     websocket_api.async_register_command(hass, ws_subscription_check)
     websocket_api.async_register_command(hass, ws_cancel_timer)
+    websocket_api.async_register_command(hass, ws_pause_timer)
     websocket_api.async_register_command(hass, ws_media_player_event)
     websocket_api.async_register_command(hass, ws_screensaver_state)
     websocket_api.async_register_command(hass, ws_get_panel_settings)
@@ -508,7 +509,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             {
                 vol.Required("entity_id"): cv.entity_ids,
                 vol.Required("name"): vol.All(cv.string, vol.Length(min=1)),
-                vol.Optional("hours"): vol.All(vol.Coerce(int), vol.Range(min=0, max=24)),
+                vol.Optional("hours"): vol.All(vol.Coerce(int), vol.Range(min=0, max=168)),
                 vol.Optional("minutes"): vol.All(vol.Coerce(int), vol.Range(min=0, max=59)),
                 vol.Optional("seconds"): vol.All(vol.Coerce(int), vol.Range(min=0, max=59)),
             }
@@ -1089,6 +1090,42 @@ async def ws_subscription_check(
             and entity.has_satellite_subscriber(connection)
         },
     )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "voice_satellite/pause_timer",
+        vol.Required("entity_id"): str,
+        vol.Required("timer_id"): str,
+        vol.Required("paused"): bool,
+    }
+)
+@websocket_api.async_response
+async def ws_pause_timer(hass, connection, msg) -> None:
+    """Pause or resume one timer belonging to this satellite."""
+    from homeassistant.components.intent.const import TIMER_DATA
+
+    entity = _find_entity(hass, msg["entity_id"])
+    if entity is None:
+        connection.send_error(msg["id"], "not_found", "Satellite not found")
+        return
+    manager = hass.data.get(TIMER_DATA)
+    if manager is None:
+        connection.send_error(msg["id"], "not_ready", "Timer manager not available")
+        return
+    timer = manager.timers.get(msg["timer_id"])
+    if timer is None or entity.device_entry is None or timer.device_id != entity.device_entry.id:
+        connection.send_error(msg["id"], "not_found", "Timer not found on satellite")
+        return
+    try:
+        if msg["paused"]:
+            manager.pause_timer(timer.id)
+        else:
+            manager.unpause_timer(timer.id)
+        connection.send_result(msg["id"], {"success": True})
+    except Exception as err:
+        _LOGGER.warning("Failed to change timer %s: %s", timer.id, err)
+        connection.send_error(msg["id"], "timer_failed", str(err))
 
 
 @websocket_api.websocket_command(

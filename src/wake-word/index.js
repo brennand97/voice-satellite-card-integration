@@ -1187,7 +1187,7 @@ export class WakeWordManager {
         // `_sync_custom_sounds()` in __init__.py) and their files can
         // be any length.
         const SPEAKER_DRAIN_MS = 250;
-        const unmuteAfter = (getChimeDuration(CHIME_WAKE) * 1000) + SPEAKER_DRAIN_MS;
+        const unmuteAfter = (getChimeDuration(CHIME_WAKE, this._card) * 1000) + SPEAKER_DRAIN_MS;
         this._pendingUnmuteHandle = setTimeout(() => {
           this._pendingUnmuteHandle = null;
           this._setMicTracksMuted(false);

@@ -161,7 +161,7 @@ export function handleWakeWordEnd(mgr, eventData) {
     // custom chime MP3s into /config/voice_satellite/sounds/), falling
     // back to the declared value if metadata isn't loaded yet.
     const SPEAKER_DRAIN_MS = 250;
-    const resumeDelay = (getChimeDuration(CHIME_WAKE) * 1000) + SPEAKER_DRAIN_MS;
+    const resumeDelay = (getChimeDuration(CHIME_WAKE, mgr.card) * 1000) + SPEAKER_DRAIN_MS;
     setTimeout(() => {
       // Discard audio captured during the chime, then resume sending.
       audio.audioBuffer = [];
@@ -704,6 +704,10 @@ export function handleError(mgr, errorData) {
     try { mgr.card.teardown(); } catch (e) {
       mgr.log.error('error', `teardown failed: ${e?.message || e}`);
     }
+    // Teardown clears the startup guard. Keep automatic bootstrap and late
+    // recovery callbacks stopped until the user explicitly starts again.
+    mgr.card._userStopped = true;
+    mgr.card._startAttempted = true;
     mgr.card.currentState = State.IDLE;
     mgr.card.ui.showStartButton();
     return;

@@ -10,6 +10,8 @@ import {
   dequeueNotification,
   playNotification,
   clearNotificationUI,
+  hasQueuedNotification,
+  playQueuedNotifications,
 } from '../shared/satellite-notification.js';
 import { sendAck } from '../shared/notification-comms.js';
 import { getSwitchState } from '../shared/satellite-state.js';
@@ -55,8 +57,8 @@ export class AnnouncementManager {
       // Skip done chime when a queued notification is waiting - the next
       // notification starts with its own announce chime and overlapping
       // audio from Web Audio + HTML Audio causes distortion in WebView.
-      if (this.queued) {
-        this.playQueued();
+      if (hasQueuedNotification(this._card)) {
+        playQueuedNotifications(this._card);
         return;
       }
 

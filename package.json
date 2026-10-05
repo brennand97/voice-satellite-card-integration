@@ -1,9 +1,10 @@
 {
   "name": "voice-satellite-card-integration",
-  "version": "2026.9.5-fork.31",
+  "version": "2026.9.13-fork.32",
   "description": "Voice Satellite for Home Assistant — turns browsers into Assist satellites.",
   "private": true,
   "scripts": {
+    "test": "node --experimental-vm-modules --test tests/*.test.cjs",
     "prebuild": "node scripts/sync-version.js && node scripts/copy-fonts.js && node scripts/copy-vendor.js",
     "build": "webpack --mode production",
     "test:js": "node --test tests/js/*.test.mjs",

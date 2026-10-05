@@ -7,13 +7,12 @@
  * Handles starting, stopping, restarting, error recovery with
  * linear backoff, continue conversation, and stale event filtering.
  *
- * Mute is no longer handled here: the session lifecycle owns it and
- * releases the mic + wake word entirely while muted, so the pipeline is
- * simply never started in that state.
+ * The session owns microphone suspension. Automatic restarts must respect
+ * it too, including restarts requested after announcement playback.
  */
 
 import { State, INTERACTING_STATES, BlurReason, Timing } from '../constants.js';
-import { getSelectState } from '../shared/satellite-state.js';
+import { getSelectState, getSwitchState } from '../shared/satellite-state.js';
 import { resumeNativeWake } from '../wake-word/native-handoff.js';
 import { subscribePipelineRun, setupReconnectListener } from './comms.js';
 import { subscribeKioskPipelineRun, nativePipelinePreferred } from './kiosk-transport.js';
@@ -101,6 +100,13 @@ export class PipelineManager {
       this._card.hass, this._card.config.satellite_entity,
       'wake_word_detection', 'Home Assistant',
     ) === 'Disabled';
+  }
+
+  _canRestart() {
+    return !this._card._muted
+      && !this._card._intercomHold
+      && !this._card._userStopped
+      && getSwitchState(this._card.hass, this._card.config.satellite_entity, 'mute') !== true;
   }
   get binaryHandlerId() { return this._binaryHandlerId; }
   set binaryHandlerId(val) { this._binaryHandlerId = val; }
@@ -223,7 +229,7 @@ export class PipelineManager {
           await audio.startMicrophone('stt');
           if (this._pipelineGen !== gen) {
             this._log.log('pipeline', 'Aborting stale start() after mic acquire - pipeline was stopped');
-            return;
+            return 'aborted';
           }
         }
         useKiosk = audio.isDelegated;
@@ -305,7 +311,7 @@ export class PipelineManager {
     if (this._pipelineGen !== gen) {
       this._log.log('pipeline', 'Aborting stale start() after subscribe - pipeline was stopped');
       try { unsub(); } catch (_) { /* cleanup */ }
-      return;
+      return 'aborted';
     }
 
     this._unsubscribe = unsub;
@@ -313,15 +319,11 @@ export class PipelineManager {
 
     // Block until the init event arrives with the binary handler ID
     await initPromise;
-    this._cancelInit = null;
     if (this._pipelineGen !== gen) {
       this._log.log('pipeline', 'Aborting stale start() after init - pipeline was stopped');
-      if (this._unsubscribe) {
-        try { this._unsubscribe().catch(() => {}); } catch (_) { /* cleanup */ }
-        this._unsubscribe = null;
-      }
-      return;
+      return 'aborted';
     }
+    this._cancelInit = null;
 
     if (isTextInput) {
       this._log.log('pipeline', 'Text-input pipeline subscribed - awaiting events (no audio)');
@@ -370,6 +372,11 @@ export class PipelineManager {
       }
     }
 
+    if (this._pipelineGen !== gen) {
+      this._log.log('pipeline', 'Aborting stale start() after mic acquire - pipeline was stopped');
+      return 'aborted';
+    }
+
     if (opts.preserve_audio_buffer) {
       this._log.log('pipeline', `Preserving ${audio.audioBuffer.length} buffered audio chunk(s) for STT`);
     } else {
@@ -409,6 +416,7 @@ export class PipelineManager {
     // Increment generation first - any in-flight start() will see the
     // mismatch after its next await and abort cleanly.
     this._pipelineGen++;
+    const gen = this._pipelineGen;
     this._log.log('pipeline', `stop() - gen=${this._pipelineGen}`);
 
     // Unblock a start() that is stuck at `await initPromise`
@@ -424,8 +432,10 @@ export class PipelineManager {
     this._deferredAudioReady = false;
 
     if (this._unsubscribe) {
-      try { await this._unsubscribe(); } catch (_) { /* cleanup */ }
+      const unsubscribe = this._unsubscribe;
       this._unsubscribe = null;
+      try { await unsubscribe(); } catch (_) { /* cleanup */ }
+      if (this._pipelineGen !== gen) return;
     }
 
     // Remove reconnect listener to prevent leaked references on teardown
@@ -451,6 +461,7 @@ export class PipelineManager {
   }
 
   restart(delay) {
+    if (!this._canRestart()) return;
     if (this._isRestarting) {
       this._log.log('pipeline', 'Restart already in progress - skipping');
       return;
@@ -462,14 +473,15 @@ export class PipelineManager {
       this._restartTimeout = null;
     }
 
-    const stopped = this.stop();
-    const restartGen = this._pipelineGen;
-    stopped.then(() => {
-      if (restartGen !== this._pipelineGen) return;
+    const stopping = this.stop();
+    const gen = this._pipelineGen;
+    stopping.then(() => {
+      if (this._pipelineGen !== gen || !this._canRestart()) return;
       this._restartTimeout = setTimeout(() => {
-        if (restartGen !== this._pipelineGen) return;
+        if (this._pipelineGen !== gen) return;
         this._restartTimeout = null;
         this._isRestarting = false;
+        if (this._pipelineGen !== gen || !this._canRestart()) return;
 
         // On-device wake word: restart local detection instead of server pipeline
         const ww = this._card.wakeWord;
@@ -504,6 +516,10 @@ export class PipelineManager {
         }
 
         this.start().catch((e) => {
+          if (this._pipelineGen !== gen || e?.name === 'MicStartAborted' || !this._canRestart()) {
+            this._log.log('pipeline', 'Restart cancelled - leaving recovery to the current session');
+            return;
+          }
           const msg = e?.message || JSON.stringify(e);
           this._log.error('pipeline', `Restart failed: ${msg}`);
           if (!this._serviceUnavailable) {
@@ -519,6 +535,7 @@ export class PipelineManager {
         });
       }, delay || 0);
     }).catch((e) => {
+      if (this._pipelineGen !== gen) return;
       this._isRestarting = false;
       if (this._restartTimeout) {
         clearTimeout(this._restartTimeout);
@@ -529,6 +546,7 @@ export class PipelineManager {
   }
 
   restartContinue(conversationId, opts = {}) {
+    if (!this._canRestart()) return;
     if (this._isRestarting) {
       this._log.log('pipeline', 'Restart already in progress - skipping continue');
       return;
@@ -543,10 +561,10 @@ export class PipelineManager {
     // Store ask_question callback if provided
     this._askQuestionCallback = opts.onSttEnd || null;
 
-    const stopped = this.stop();
-    const restartGen = this._pipelineGen;
-    stopped.then(() => {
-      if (restartGen !== this._pipelineGen) return;
+    const stopping = this.stop();
+    const gen = this._pipelineGen;
+    return stopping.then(() => {
+      if (this._pipelineGen !== gen || !this._canRestart()) return;
       this._isRestarting = false;
       this._continueMode = true;
       const startOpts = {
@@ -566,7 +584,8 @@ export class PipelineManager {
       if (opts.wake_word_slot === 1 || opts.wake_word_slot === 2) {
         startOpts.wake_word_slot = opts.wake_word_slot;
       }
-      this.start(startOpts).catch((e) => {
+      return this.start(startOpts).catch((e) => {
+        if (this._pipelineGen !== gen || e?.name === 'MicStartAborted' || !this._canRestart()) return;
         const msg = e?.message || JSON.stringify(e);
         this._log.error('pipeline', `Continue conversation failed: ${msg}`);
         // Both start_conversation and ask_question drive STT via this
@@ -587,6 +606,7 @@ export class PipelineManager {
         this.restart(0);
       });
     }).catch((e) => {
+      if (this._pipelineGen !== gen) return;
       this._isRestarting = false;
       this._log.error('pipeline', `stop() failed during restartContinue: ${e?.message || e}`);
     });

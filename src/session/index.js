@@ -27,6 +27,7 @@ import { ShowManager } from '../show';
 import { MediaPlayerManager } from '../media-player';
 import { getSelectEntityId, getNumberState, getSelectState, getSwitchState } from '../shared/satellite-state.js';
 import { WakeWordManager } from '../wake-word';
+import * as kiosk from '../kiosk/index.js';
 import { ScreensaverManager } from '../screensaver';
 import { DiagnosticsManager } from '../diagnostics';
 import { ToastManager } from '../toast';
@@ -103,6 +104,8 @@ export class VoiceSatelliteSession {
     // on/off transitions and actually release / re-acquire the mic + wake
     // word (not just gate pipeline start).
     this._muted = false;
+    // Kiosk Satellite's intercom holds the mic for a call (_setIntercomHold).
+    this._intercomHold = false;
 
     this._logger = new Logger();
 
@@ -138,6 +141,7 @@ export class VoiceSatelliteSession {
       },
       followupTimeoutMs: 60000,
     });
+    kiosk.bindIntercomMicHold((hold) => this._setIntercomHold(hold));
     this._doubleTap = new DoubleTapHandler(this);
     this._visibility = new VisibilityManager(this);
     this._timer = new TimerManager(this);
@@ -350,7 +354,7 @@ export class VoiceSatelliteSession {
       // the unmute tick, _resumeFromMute already kicked off startListening,
       // so skip the redundant checks for this update too.
       const muteTransitioned = this._applyMuteState();
-      if (!this._muted && !muteTransitioned) {
+      if (!this._muted && !muteTransitioned && !this._intercomHold) {
         if (this._wakeWord) {
           this._wakeWord.checkSettingsChanged();
         } else {
@@ -640,8 +644,12 @@ export class VoiceSatelliteSession {
    * mute switch defensively.
    */
   _resumeFromMute() {
-    this._logger.log('session', 'Unmuted - restarting mic and wake word');
     this._dismissMutedToast();
+    if (this._intercomHold) {
+      this._logger.log('session', 'Unmuted during an intercom call - the mic comes back when it ends');
+      return;
+    }
+    this._logger.log('session', 'Unmuted - restarting mic and wake word');
     // Clear the in-flight guard so startListening proceeds; the pipeline is
     // already stopped (binaryHandlerId null) so its early-return won't trip.
     this._starting = false;
@@ -670,6 +678,38 @@ export class VoiceSatelliteSession {
   /** Dismiss the muted status toast, if present. */
   _dismissMutedToast() {
     this._toast.dismiss('mic-muted');
+  }
+
+  // ── Intercom microphone hold (Kiosk Satellite) ─────────────────
+
+  /**
+   * Kiosk Satellite's intercom wants the microphone this page holds, or is
+   * done with it. A call comes first: the same release the mute switch does,
+   * minus the toast, so the app can capture, and the mic and wake word come
+   * back through startListening when the call ends. Only a page holding its
+   * own capture (Home Assistant wake mode, a browser engine) ever sees this:
+   * under the native wake handoff the app owns the microphone already and
+   * shares it with the call.
+   */
+  _setIntercomHold(hold) {
+    if (hold === this._intercomHold) return;
+    this._intercomHold = hold;
+    if (hold) {
+      this._logger.log('session', 'Intercom call - releasing the mic for the app');
+      if (!this._nativeWakeActive) {
+        try { this._wakeWord?.release('browser'); } catch (e) { this._logger.log('session', `intercom: wakeWord.release: ${e.message || e}`); }
+      }
+      try { this._pipeline.stop(); } catch (e) { this._logger.log('session', `intercom: pipeline.stop: ${e.message || e}`); }
+      try { this._audio.stopMicrophone(); } catch (e) { this._logger.log('session', `intercom: stopMicrophone: ${e.message || e}`); }
+      if (this._hasStarted) this.setState(State.IDLE);
+      return;
+    }
+    if (this._muted || !this._startAttempted) return;
+    this._logger.log('session', 'Intercom call ended - restarting mic and wake word');
+    this._starting = false;
+    startListening(this).catch((e) => {
+      this._logger.error('session', `Resume after the intercom call failed: ${e.message || e}`);
+    });
   }
 
   /**

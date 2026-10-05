@@ -10,6 +10,7 @@ import {
   initNotificationState,
   dequeueNotification,
   playNotification,
+  releaseNotificationInteraction,
 } from '../shared/satellite-notification.js';
 import { sendAck } from '../shared/notification-comms.js';
 import { BlurReason } from '../constants.js';
@@ -67,11 +68,14 @@ export class StartConversationManager {
     // Clear the mini card's notification status override explicitly instead.
     this._card.ui.clearNotificationStatusOverride?.();
 
-    this.playing = false;
     this._card.ui.showBlurOverlay(BlurReason.PIPELINE);
 
     const { pipeline } = this._card;
-    if (!pipeline) return;
+    if (!pipeline) {
+      this.playing = false;
+      releaseNotificationInteraction(this);
+      return;
+    }
 
     // Apply the same delay/chime handoff as the continue-conversation
     // branch in onTTSComplete — the prompt TTS just played and the next
@@ -80,8 +84,16 @@ export class StartConversationManager {
     // start_conversation prompt skipped the protective pause that every
     // subsequent turn used.
     performFollowupHandoff(this._card, () => {
-      pipeline.restartContinue(null, {
+      this.playing = false;
+      // A running conversation releases this hold with the voice hold at
+      // its end. Keep it across init, which can arrive before run-start.
+      // Muted or failed starts have no run to own the release.
+      Promise.resolve(pipeline.restartContinue(null, {
         extra_system_prompt: ann.extra_system_prompt || null,
+      })).finally(() => {
+        if (this.currentAnnounceId === ann.id && !pipeline.binaryHandlerId) {
+          releaseNotificationInteraction(this);
+        }
       });
     }, { logTag: 'start_conversation' });
   }
