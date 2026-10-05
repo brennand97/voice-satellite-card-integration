@@ -71,6 +71,7 @@ class ServerCapabilities:
     effective_profile: str | None = None
     effective_tools: tuple[str, ...] = ()
     effective_voice: str | None = None
+    prompt_append: bool = False
 
 
 def validate_server_message(message: object) -> dict[str, Any]:
@@ -97,6 +98,8 @@ def validate_ready(message: object, session_id: str) -> ServerCapabilities:
     )
     if any(not isinstance(raw.get(key), bool) for key in required):
         raise ProtocolError("session.ready has invalid capabilities")
+    if not isinstance(raw.get("prompt_append", False), bool):
+        raise ProtocolError("session.ready has invalid prompt_append capability")
     profile = message.get("effective_profile")
     tools = message.get("effective_tools")
     voice = message.get("effective_voice")
@@ -114,6 +117,7 @@ def validate_ready(message: object, session_id: str) -> ServerCapabilities:
         effective_profile=profile,
         effective_tools=tuple(tools or ()),
         effective_voice=voice,
+        prompt_append=raw.get("prompt_append", False),
     )
 
 

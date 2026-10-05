@@ -72,7 +72,7 @@
             "profile_name": "Friendly name shown when selecting the conversation agent.",
             "tool_profile": "Exact profile name configured in the External Transport server, such as home-generic. It is not auto-discovered or validated here; copy it from voice-tools.json. This cannot grant tools by itself.",
             "initial_prompt": "Replaces the server default instructions. Leave blank to keep the defaults and use the append field for personal information.",
-            "prompt_append": "Personal information or preferences appended after the server default (or your full override, if set). Leave blank for no additions. Requires a transport version supporting prompt_append.",
+            "prompt_append": "Personal information or preferences appended after the server default (or your full override, if set). Leave blank for no additions. Requires Pipecat transport 0.1.42 or newer; older servers cannot use this field.",
             "initial_voice": "Optional provider voice override for audio Satellites. Leave blank for the server default; it has no effect for text-only conversations.",
             "requested_tools": "Optional comma- or newline-separated exact tool names from the server tool configuration. They are not auto-discovered or validated here. Leave blank to use the complete server-approved profile. This can only restrict access; wildcards are not allowed."
           }

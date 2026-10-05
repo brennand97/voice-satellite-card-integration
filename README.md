@@ -123,7 +123,7 @@ If prompted, add `brennand97/voice-satellite-card-integration` as an **Integrati
 
 ## Profile prompt customization
 
-In an External Conversation Service, edit its conversation profile. Leave **Full prompt override** empty to keep the transport’s default instructions, and use **Append to prompt** for personal information or preferences. If both are filled, the addition follows the full override. Existing overrides are preserved; nothing is automatically migrated. Changes apply to new sessions and require a transport that supports `conversation.prompt_append`.
+In an External Conversation Service, edit its conversation profile. Leave **Full prompt override** empty to keep the transport’s default instructions, and use **Append to prompt** for personal information or preferences. If both are filled, the addition follows the full override. Existing overrides are preserved; nothing is automatically migrated. Changes apply to new sessions and require Pipecat transport **0.1.42 or newer**. If an older transport does not advertise append support, appended-context sessions fail with an upgrade message instead of silently ignoring the addition. With the append field blank, existing transport 0.1.41 sessions remain supported.
 
 Agent-ended sessions use the same full conversation exit as Escape/double-tap, clearing transcript, playback and interaction UI while preserving timers and their alerts.
 

@@ -46,6 +46,11 @@ class ExternalTransportClient:
             await self._ws.send_json(self._start.as_message())
             raw = await asyncio.wait_for(self._ws.receive(), timeout=self._ready_timeout)
             self.capabilities = validate_ready(self._decode_json(raw), self._start.session_id)
+            if self._start.prompt_append and not self.capabilities.prompt_append:
+                raise ProtocolError(
+                    "Appended prompt context requires Pipecat transport 0.1.42 or newer. "
+                    "Upgrade the transport or clear the append field."
+                )
             self.state.transition(SessionState.READY)
             self.state.transition(SessionState.LISTENING)
             return self.capabilities

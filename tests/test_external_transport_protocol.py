@@ -405,5 +405,30 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(websocket.closed)
 
 
+class PromptAppendNegotiationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_appended_context_requires_explicit_server_support(self):
+        for supported in (False, True):
+            with self.subTest(supported=supported):
+                capabilities = dict(transcription=True, text_input=True,
+                    streaming_audio_url=True, interruptions=True, conversation_continuation=True)
+                if supported:
+                    capabilities["prompt_append"] = True
+                websocket = FakeWebSocket([FakeMessage({"type": "session.ready",
+                    "session_id": "s1", "capabilities": capabilities})])
+                client = client_module.ExternalTransportClient(
+                    FakeHttpSession(websocket), "wss://voice.example/transport/v1", "secret",
+                    protocol.SessionStart("s1", "assist_satellite.kitchen", "Kitchen",
+                        prompt_append="Personal context"), 1)
+                if supported:
+                    result = await client.connect()
+                    self.assertTrue(result.prompt_append)
+                    await client.close()
+                else:
+                    with self.assertRaisesRegex(protocol.ProtocolError, "0.1.42"):
+                        await client.connect()
+                    self.assertTrue(websocket.closed)
+                    self.assertEqual(client.state.current, session.SessionState.FAILED)
+
+
 if __name__ == "__main__":
     unittest.main()
